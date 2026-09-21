@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.local
+dist/
+build/
+uploads/
+*.log
+.DS_Store
+
+rgb(34, 185, 185) the files name over here that are sensitive and cannot be shared to the public.
