@@ -50,10 +50,10 @@ npm run dev
 
 | Name | Role |
 |---|---|
-| GB| Project Lead |
-| | Backend |
-| | Frontend |
-| | QA |
+| Gaurav Bhandari| DataBase |
+| Serene Plummer| Backend |
+| Ingeet Adhikari| Frontend |
+| Anup Sharma| QA |
 
 ## Team Workflow
 
