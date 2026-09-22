@@ -50,7 +50,7 @@ npm run dev
 
 | Name | Role |
 |---|---|
-| | Project Lead |
+| GB| Project Lead |
 | | Backend |
 | | Frontend |
 | | QA |
