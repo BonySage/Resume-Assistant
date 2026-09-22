@@ -28,7 +28,12 @@ PostgreSQL schema and migrations for the AI Resume Assistant.
 
 ## Running locally
 
-_To be added once the Docker Compose file is in place._
+```bash
+docker compose up -d          # starts Postgres on localhost:5432 (see root docker-compose.yml)
+cd backend && npm run migrate  # applies migrations/*.sql in order, tracked in schema_migrations
+```
+
+Or point `DATABASE_URL` (in `backend/.env`) at any existing Postgres instance instead of Docker.
 
 ## Git workflow
 

@@ -40,8 +40,12 @@ Screens (SRS section 6):
 
 ## Setup
 
-_To be filled in by the frontend owner: install steps, how to run locally, how
-to run tests._
+```bash
+npm install
+npm run dev   # http://localhost:5173 — vite.config.js proxies /api to the backend on :3000
+```
+
+No automated tests yet. `npm run lint` runs oxlint.
 
 ## Git workflow
 

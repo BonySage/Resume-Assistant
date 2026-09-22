@@ -43,8 +43,16 @@ orchestration, and PDF export.
 
 ## Setup
 
-_To be filled in by the backend owner: Node version, install steps, how to run
-locally, how to run tests._
+Requires Node 18+ and a running Postgres (see `../docker-compose.yml`).
+
+```bash
+npm install
+cp .env.example .env   # set DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY
+npm run migrate         # applies ../db/migrations/*.sql
+npm run dev              # http://localhost:3000, restarts on file changes
+```
+
+No automated tests yet — see the root repo for manual smoke-test notes.
 
 ## Git workflow
 
