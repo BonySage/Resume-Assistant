@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · Resume Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+</head>
+<body data-page="auth">
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <div class="auth">
+    <aside class="auth-side">
+      <div class="blobs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <a class="logo" href="index.html" id="logo" aria-label="Resume Assistant home"></a>
+      <blockquote>
+        One resume.<br>Every job.<br><span class="hl">Tailored in minutes.</span>
+      </blockquote>
+      <div class="auth-float" aria-hidden="true">
+        <div class="glass-card gc-1"><span class="eyebrow">Match score</span><div class="big">81<small>%</small></div><span class="badge badge-good" style="background:#e0f2e6">✓ Strong</span></div>
+        <div class="glass-card gc-2"><span class="eyebrow">AI suggestion</span><p>“Designed Tableau dashboards reporting weekly <mark>KPIs</mark> to 3 managers.”</p></div>
+        <div class="glass-card gc-3"><span class="eyebrow">Keywords</span><div class="chips"><span class="chip chip-match">✓ SQL</span><span class="chip chip-match">✓ Python</span><span class="chip chip-miss" style="background:#fff">✕ Power BI</span></div></div>
+      </div>
+      <p class="caption">Used by students and early‑career job seekers.</p>
+    </aside>
+
+    <main class="auth-main" id="main">
+      <div class="auth-card">
+        <div class="segmented" role="tablist" aria-label="Choose log in or sign up">
+          <button role="tab" id="tab-login" aria-controls="panel-login" aria-selected="true" type="button"><i data-icon="user"></i>Log in</button>
+          <button role="tab" id="tab-signup" aria-controls="panel-signup" aria-selected="false" type="button" tabindex="-1"><i data-icon="plus"></i>Sign up</button>
+        </div>
+
+        <!-- ========== LOG IN ========== -->
+        <section id="panel-login" role="tabpanel" aria-labelledby="tab-login">
+          <h1>Welcome <em>back</em></h1>
+          <p class="muted" style="margin-top:8px">Log in to see your resumes and matches.</p>
+
+          <div id="login-notice" hidden style="margin-top:20px"></div>
+
+          <div class="social" data-social="login" style="margin-top:24px"></div>
+          <div class="divider">or log in with email</div>
+
+          <form id="login-form" novalidate style="margin-top:0">
+            <div class="alert alert-error" id="login-error" role="alert" hidden>
+              <i data-icon="x-circle"></i>
+              <div class="alert-body"><strong>That email and password don’t match</strong>Check for typos, or reset your password below.</div>
+            </div>
+
+            <div class="field" style="margin-top:18px">
+              <label class="label" for="login-email">Email</label>
+              <input class="input" id="login-email" type="email" autocomplete="email" placeholder="you@example.com" required aria-describedby="login-email-msg">
+              <span class="msg msg-error" id="login-email-msg" aria-live="polite"></span>
+            </div>
+
+            <div class="field">
+              <label class="label" for="login-pw">Password <a href="#" id="forgot">Forgot password?</a></label>
+              <div class="input-wrap">
+                <input class="input" id="login-pw" type="password" autocomplete="current-password" required aria-describedby="caps-login">
+                <button class="input-action" type="button" data-toggle-pw="login-pw" aria-pressed="false"><i data-icon="eye"></i><span>Show</span></button>
+              </div>
+              <span class="msg msg-warn" id="caps-login" hidden><i data-icon="alert"></i>Caps Lock is on</span>
+            </div>
+
+            <label class="check" style="margin-top:18px"><input type="checkbox" checked> Keep me logged in on this device</label>
+
+            <button class="btn btn-primary btn-lg btn-block" type="submit" style="margin-top:24px">Log in <i data-icon="arrow-right"></i></button>
+            <p class="caption" style="margin-top:12px;text-align:center">Demo: use any email and a password of 8+ characters. Try <span class="mono">wrong@email.com</span> to see the error state.</p>
+          </form>
+
+          <div class="divider">or</div>
+          <p style="text-align:center">New here? <button class="link-btn" type="button" data-go="signup">Create an account</button></p>
+        </section>
+
+        <!-- ========== SIGN UP ========== -->
+        <section id="panel-signup" role="tabpanel" aria-labelledby="tab-signup" hidden>
+          <h1>Create your <em>account</em></h1>
+          <p class="muted" style="margin-top:8px">Fields marked <span aria-hidden="true" style="color:var(--bad)">*</span><span class="visually-hidden">with an asterisk</span> are required.</p>
+
+          <div class="social" data-social="signup" style="margin-top:24px"></div>
+          <div class="divider">or sign up with email</div>
+
+          <form id="signup-form" novalidate style="margin-top:0">
+            <div class="field">
+              <label class="label" for="su-name">Full name</label>
+              <input class="input" id="su-name" autocomplete="name" placeholder="Alex Rivera">
+            </div>
+
+            <div class="field">
+              <label class="label" for="su-email"><span>Email <span class="req" aria-hidden="true">*</span></span></label>
+              <input class="input" id="su-email" type="email" autocomplete="email" required aria-required="true" placeholder="you@example.com" aria-describedby="su-email-msg">
+              <span class="msg" id="su-email-msg" aria-live="polite"></span>
+            </div>
+
+            <div class="field">
+              <label class="label" for="su-pw"><span>Password <span class="req" aria-hidden="true">*</span></span></label>
+              <div class="input-wrap">
+                <input class="input" id="su-pw" type="password" autocomplete="new-password" required aria-required="true" aria-describedby="su-strength-word su-rules">
+                <button class="input-action" type="button" data-toggle-pw="su-pw" aria-pressed="false"><i data-icon="eye"></i><span>Show</span></button>
+              </div>
+              <div class="strength" id="su-strength" data-level="0" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+              <span class="small" id="su-strength-word" aria-live="polite"><strong>Strength:</strong> <span>Not set</span></span>
+              <ul class="rules" id="su-rules">
+                <li data-rule="len"><i data-icon="x" class="icon-sm"></i>At least 8 characters</li>
+                <li data-rule="case"><i data-icon="x" class="icon-sm"></i>Upper and lower case letters</li>
+                <li data-rule="num"><i data-icon="x" class="icon-sm"></i>At least one number</li>
+                <li data-rule="sym"><i data-icon="plus" class="icon-sm"></i>A symbol makes it stronger (optional)</li>
+              </ul>
+            </div>
+
+            <div class="field">
+              <label class="label" for="su-pw2"><span>Confirm password <span class="req" aria-hidden="true">*</span></span></label>
+              <input class="input" id="su-pw2" type="password" autocomplete="new-password" required aria-required="true" aria-describedby="su-pw2-msg">
+              <span class="msg" id="su-pw2-msg" aria-live="polite"></span>
+            </div>
+
+            <label class="check" style="margin-top:18px"><input type="checkbox" id="su-terms" required> <span>I agree to the <a href="#">Terms</a> and <a href="#">Privacy Policy</a></span></label>
+
+            <button class="btn btn-primary btn-lg btn-block" id="su-submit" type="submit" style="margin-top:24px" disabled aria-describedby="su-why">Create account</button>
+            <p class="caption" id="su-why" style="margin-top:10px;text-align:center">Complete the required fields to continue.</p>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/pages/auth.js"></script>
+</body>
+</html>

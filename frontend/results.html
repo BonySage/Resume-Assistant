@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Match results · Resume Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+</head>
+<body data-page="results" data-auth="required">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div data-shell data-active="analyses"></div>
+
+  <main id="main" class="page">
+    <div class="container">
+      <ol class="steps" data-current="3"></ol>
+
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Main feature 2 · Match results</p>
+          <h1 style="margin-top:6px">Junior Data Analyst <em>· Northwind Bank</em></h1>
+          <p class="muted">Compared with <strong id="res-name"></strong> · <a href="job.html">Change job</a></p>
+        </div>
+        <a class="btn btn-primary btn-lg" href="improve.html" id="improve-top"><i data-icon="sparkles"></i>Improve bullets</a>
+      </div>
+
+      <div class="grid-main-wide">
+        <div class="stack" style="--gap:24px">
+          <!-- Score -->
+          <section class="card card-ink glow" aria-labelledby="score-title">
+            <h2 id="score-title" class="visually-hidden">Match score</h2>
+            <div class="score">
+              <div class="ring" id="ring"></div>
+              <div>
+                <span id="score-badge"></span>
+                <p style="margin-top:12px;font-size:1.125rem">Adding <span class="hl"><strong>2–3 missing skills</strong></span> could move you to <strong>Strong</strong>.</p>
+                <div class="scale" role="list" aria-label="Score ranges">
+                  <div class="s-bad" role="listitem"><i data-icon="x"></i>Low 0–49</div>
+                  <div class="s-fair" role="listitem" aria-current="true"><i data-icon="bang"></i>Fair 50–74</div>
+                  <div class="s-good" role="listitem"><i data-icon="check"></i>Strong 75+</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Keywords -->
+          <section class="card" aria-labelledby="kw-title">
+            <div class="card-head"><h2 id="kw-title">Keywords from the job</h2><span class="caption">21 found in the posting</span></div>
+
+            <h3 class="row" style="gap:8px"><span class="badge badge-good"><i data-icon="check"></i>Matched</span><span class="count" id="n-matched"></span><span class="small muted" style="font-weight:500">in your resume</span></h3>
+            <div class="chips" id="kw-matched" style="margin-top:10px"></div>
+
+            <hr class="divider-line">
+            <h3 class="row" style="gap:8px"><span class="badge badge-bad"><i data-icon="x"></i>Missing</span><span class="count" id="n-missing"></span><span class="small muted" style="font-weight:500">not found in your resume</span></h3>
+            <p class="eyebrow" style="margin-top:12px">Critical</p>
+            <div class="chips" id="kw-critical" style="margin-top:8px"></div>
+            <p class="eyebrow" style="margin-top:12px">Nice to have</p>
+            <div class="chips" id="kw-secondary" style="margin-top:8px"></div>
+
+            <hr class="divider-line">
+            <h3 class="row" style="gap:8px"><span class="badge badge-fair"><i data-icon="bang"></i>Weak</span><span class="count" id="n-weak"></span><span class="small muted" style="font-weight:500">mentioned only once</span></h3>
+            <div class="chips" id="kw-weak" style="margin-top:10px"></div>
+          </section>
+        </div>
+
+        <div class="stack" style="--gap:24px">
+          <section class="card panel-violet" aria-labelledby="rec-title">
+            <h2 id="rec-title" class="row" style="gap:10px"><i data-icon="zap"></i>Recommendations</h2>
+            <ol id="recs" style="margin:14px 0 0;padding-left:22px;display:grid;gap:10px"></ol>
+          </section>
+
+          <section class="card" aria-labelledby="bul-title">
+            <div class="card-head">
+              <h2 id="bul-title">Your bullets</h2>
+              <span class="caption">Select one to improve</span>
+            </div>
+            <fieldset style="border:0;padding:0;margin:0">
+              <legend class="visually-hidden">Choose a bullet to improve</legend>
+              <div class="bullet-pick" id="bullets"></div>
+            </fieldset>
+            <a class="btn btn-primary btn-block" href="improve.html" id="improve-go" style="margin-top:16px"><i data-icon="sparkles"></i>Improve selected bullet</a>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    RAPages.results = function () {
+      const { icon } = RA, A = RAData.ANALYSIS, $ = s => document.querySelector(s);
+      $("#res-name").textContent = RAData.activeResume().name;
+      const lvl = RA.scoreRing($("#ring"), A.score);
+      $("#score-badge").innerHTML = `<span class="badge badge-${lvl.key}" style="font-size:1rem;padding:5px 14px">${icon(lvl.icon)}${lvl.word} match</span>`;
+
+      const chip = (cls, ic) => k => `<span class="chip ${cls}">${icon(ic)}${k}</span>`;
+      const k = A.keywords;
+      $("#kw-matched").innerHTML = k.matched.map(chip("chip-match", "check")).join("");
+      $("#kw-critical").innerHTML = k.missingCritical.map(chip("chip-miss", "x")).join("");
+      $("#kw-secondary").innerHTML = k.missingSecondary.map(chip("chip-miss", "x")).join("");
+      $("#kw-weak").innerHTML = k.weak.map(chip("chip-weak", "bang")).join("");
+      $("#n-matched").textContent = k.matched.length;
+      $("#n-missing").textContent = k.missingCritical.length + k.missingSecondary.length;
+      $("#n-weak").textContent = k.weak.length;
+
+      $("#recs").innerHTML = A.recommendations.map(r => `<li>${r.html}</li>`).join("");
+
+      const saved = RAData.state.saved;
+      $("#bullets").innerHTML = A.bullets.map((b, i) => `
+        <label class="bullet-opt check">
+          <input type="radio" name="bullet" value="${b.id}" ${i === 0 ? "checked" : ""}>
+          <span><span class="bullet-text">${saved[b.id] ? saved[b.id] : b.text}</span>
+            <span class="bullet-meta" style="display:block">${b.where} · ${b.hint}</span></span>
+          ${saved[b.id] ? `<span class="badge badge-good">${icon("check")}Improved</span>` : ""}
+        </label>`).join("");
+      const go = () => {
+        const id = document.querySelector("input[name=bullet]:checked").value;
+        const href = "improve.html#" + id;
+        $("#improve-go").href = href; $("#improve-top").href = href;
+      };
+      document.querySelectorAll("input[name=bullet]").forEach(r => r.addEventListener("change", go));
+      go();
+    };
+  </script>
+</body>
+</html>

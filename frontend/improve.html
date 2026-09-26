@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Improve bullets · Resume Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+</head>
+<body data-page="improve" data-auth="required">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div data-shell data-active="analyses"></div>
+
+  <main id="main" class="page">
+    <div class="container" style="max-width:920px">
+      <ol class="steps" data-current="4"></ol>
+
+      <div class="page-head" style="margin-bottom:20px">
+        <div>
+          <p class="eyebrow">Main feature 3 · Improve with AI</p>
+          <h1 style="margin-top:6px">Make this bullet <em>work harder</em></h1>
+        </div>
+        <div class="pill-tip" id="progress-pill"></div>
+      </div>
+
+      <section class="original" aria-labelledby="orig-label">
+        <p class="eyebrow" id="orig-label">Original bullet · <span id="orig-where"></span></p>
+        <blockquote id="orig-text"></blockquote>
+        <div class="row" style="gap:8px"><span class="small" style="color:#d6d2c8">Job keywords this could show:</span><span class="chips" id="orig-fits"></span></div>
+      </section>
+
+      <div class="row-between" style="margin:28px 0 14px">
+        <h2 class="row" style="gap:10px"><i data-icon="sparkles"></i>3 AI suggestions</h2>
+        <div class="row">
+          <span class="small muted">Pick one, edit it if you like</span>
+          <button class="btn btn-secondary btn-sm" type="button" id="regen"><i data-icon="refresh"></i>Regenerate</button>
+        </div>
+      </div>
+
+      <div id="options" class="stack" style="--gap:16px" aria-live="polite"></div>
+
+      <div class="actionbar">
+        <p class="note"><i data-icon="lock"></i>Your resume won’t change until you press Save.</p>
+        <a class="btn btn-secondary" href="results.html"><i data-icon="arrow-left"></i>Back to results</a>
+        <button class="btn btn-secondary" type="button" id="skip">Skip this bullet</button>
+        <button class="btn btn-primary" type="button" id="save" disabled>Save selection</button>
+      </div>
+
+      <p class="caption" style="margin-top:20px;text-align:center">Demo: press <button class="link-btn" type="button" id="demo-down">simulate AI outage</button> to see the NFR‑4.3 fallback.</p>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/pages/improve.js"></script>
+</body>
+</html>
