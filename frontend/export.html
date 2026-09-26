@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Export your resume · Resume Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+</head>
+<body data-page="export" data-auth="required" class="show-changes">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div data-shell data-active="analyses"></div>
+
+  <main id="main" class="page">
+    <div class="container">
+      <ol class="steps" data-current="5"></ol>
+
+      <div class="grid-main">
+        <section aria-labelledby="preview-title">
+          <div class="row-between" style="margin-bottom:16px">
+            <div>
+              <p class="eyebrow">Main feature 4 · Export</p>
+              <h1 id="preview-title" style="margin-top:6px">Preview your <em>tailored</em> resume</h1>
+            </div>
+            <label class="switch"><input type="checkbox" id="hl-toggle" checked> <span>Highlight changes</span> <span class="switch-state caption" id="hl-state">On</span></label>
+          </div>
+
+          <article class="sheet" aria-label="Resume preview">
+            <h3>Alex Rivera</h3>
+            <p style="color:#45464f">alex.rivera@email.com · (555) 010‑2233 · linkedin.com/in/alexrivera</p>
+
+            <h4>Experience</h4>
+            <div class="job"><span>Data Intern · Contoso</span><span>Jun–Aug 2026</span></div>
+            <ul>
+              <li data-b="b1">Built Tableau dashboards to track weekly sales for the team.</li>
+              <li>Automated a weekly Excel report with Python, saving about 3 hours per week.</li>
+              <li>Analyzed a 2,000‑row customer survey to find the top 3 reasons for churn.</li>
+            </ul>
+            <div class="job"><span>Office Assistant · Campus Library</span><span>2024–2026</span></div>
+            <ul>
+              <li data-b="b3">Helped prepare monthly reports in Excel.</li>
+              <li>Answered 40+ student questions per shift.</li>
+            </ul>
+
+            <h4>Projects</h4>
+            <ul><li data-b="b2">Cleaned and merged survey data in Python for a class project.</li></ul>
+
+            <h4>Education</h4>
+            <div class="job"><span>B.S. Business Analytics · State University</span><span>2027</span></div>
+
+            <h4>Skills</h4>
+            <p>SQL, Excel, Python, Tableau, Data cleaning, Dashboards, Statistics, ETL</p>
+          </article>
+          <p class="caption" style="text-align:center;margin-top:12px">Page 1 of 1 · highlights appear only in this preview, not in your file</p>
+        </section>
+
+        <aside class="stack sticky" style="--gap:20px">
+          <section class="card card-ink glow" aria-labelledby="dl-title">
+            <h2 id="dl-title">Ready to download</h2>
+            <div class="row" style="margin-top:12px">
+              <span class="badge badge-good" id="n-improved"></span>
+              <span class="badge badge-neutral" id="n-same"></span>
+            </div>
+            <div class="row" style="margin-top:16px;gap:14px;align-items:center">
+              <div><div class="caption">Before</div><div class="mini-score"><span class="n">68%</span></div></div>
+              <i data-icon="arrow-right"></i>
+              <div><div class="caption">Estimated after</div><div class="mini-score"><span class="n" id="after">81%</span><span id="after-badge"></span></div></div>
+            </div>
+
+            <hr class="divider-line">
+            <form id="dl-form">
+              <div class="field">
+                <label class="label" for="fname">File name</label>
+                <div class="input-wrap">
+                  <input class="input" id="fname" value="Alex_Rivera_DataAnalyst" aria-describedby="fname-ext fname-msg" style="padding-right:64px">
+                  <span class="input-action mono" id="fname-ext" style="color:var(--ink-2);pointer-events:none">.pdf</span>
+                </div>
+                <span class="msg msg-error" id="fname-msg" aria-live="polite"></span>
+              </div>
+
+              <fieldset style="border:0;padding:0;margin:18px 0 0">
+                <legend class="label" style="margin-bottom:8px">Format</legend>
+                <div class="stack" style="--gap:10px">
+                  <label class="format-opt check"><input type="radio" name="fmt" value="pdf" checked>
+                    <span><strong>PDF</strong> <span class="badge badge-marker" style="margin-left:6px">Recommended</span><span class="small muted" style="display:block">Looks the same on every computer</span></span></label>
+                  <label class="format-opt check"><input type="radio" name="fmt" value="docx">
+                    <span><strong>Word (DOCX)</strong><span class="small muted" style="display:block">Edit it later in Word or Google Docs</span></span></label>
+                </div>
+              </fieldset>
+
+              <button class="btn btn-primary btn-lg btn-block" type="submit" style="margin-top:22px"><i data-icon="download"></i>Download updated resume</button>
+              <p class="caption" style="text-align:center;margin-top:10px">Your original file stays unchanged.</p>
+            </form>
+          </section>
+          <a class="btn btn-secondary" href="improve.html"><i data-icon="arrow-left"></i>Back to improve bullets</a>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    RAPages.export = function () {
+      const $ = s => document.querySelector(s), { icon } = RA;
+      let saved = RAData.state.saved;
+      // If the user skipped straight here, show the demo with all 3 improved bullets.
+      if (!Object.keys(saved).length) {
+        saved = {};
+        RAData.ANALYSIS.bullets.forEach(b => saved[b.id] = b.options[1].text.replace(/<[^>]+>/g, ""));
+      }
+      document.querySelectorAll("[data-b]").forEach(li => {
+        if (saved[li.dataset.b]) { li.textContent = saved[li.dataset.b]; li.classList.add("updated"); }
+      });
+      const n = Object.keys(saved).length;
+      $("#n-improved").innerHTML = `${icon("check")}${n} bullets improved`;
+      $("#n-same").textContent = `${14 - n} unchanged`;
+      const after = 68 + n * 4 + 1;
+      $("#after").textContent = after + "%";
+      $("#after-badge").innerHTML = RA.levelBadge(after);
+
+      $("#hl-toggle").addEventListener("change", e => {
+        document.body.classList.toggle("show-changes", e.target.checked);
+        $("#hl-state").textContent = e.target.checked ? "On" : "Off";
+      });
+      document.querySelectorAll("input[name=fmt]").forEach(r => r.addEventListener("change", () => { $("#fname-ext").textContent = "." + r.value; }));
+
+      $("#dl-form").addEventListener("submit", async e => {
+        e.preventDefault();
+        const f = $("#fname"), name = f.value.trim();
+        if (!/^[\w\- ]{1,60}$/.test(name)) {
+          f.setAttribute("aria-invalid", "true");
+          $("#fname-msg").innerHTML = icon("x-circle") + "Use letters, numbers, dashes or underscores only.";
+          f.focus(); return;
+        }
+        const fmt = document.querySelector("input[name=fmt]:checked").value;
+        const btn = e.submitter;
+        btn.setAttribute("aria-busy", "true");
+        btn.innerHTML = icon("refresh") + "Preparing your file…";
+        await RA.wait(1200);
+        RAData.save({ lastExport: { file: `${name}.${fmt}`, n } });
+        RA.go("done.html");
+      });
+    };
+  </script>
+</body>
+</html>

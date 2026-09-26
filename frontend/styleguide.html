@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Style guide · Resume Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+  <style>
+    .sg-sec { padding: 48px 0; border-top: 1.5px solid var(--ink); }
+    .sg-sec > .container > header { display: grid; grid-template-columns: 90px 1fr; gap: 16px; margin-bottom: 28px; }
+    .sg-num { font-family: var(--font-display); font-style: italic; font-size: 3rem; line-height: 1; }
+    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+    .swatch { border: 1.5px solid var(--ink); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
+    .swatch .chip-color { height: 88px; display: flex; align-items: flex-end; justify-content: space-between; padding: 10px 12px; font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; }
+    .swatch .meta { padding: 10px 12px; font-size: .8125rem; }
+    .swatch .meta strong { display: block; font-size: .9375rem; }
+    .ratio { font-family: var(--font-mono); font-size: .75rem; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: var(--ink); color: var(--marker); }
+    .type-row { display: grid; grid-template-columns: 160px 1fr 190px; gap: 16px; align-items: baseline; padding: 14px 0; border-top: 1px solid var(--line); }
+    .icons-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+    .icons-grid div { display: grid; justify-items: center; gap: 8px; padding: 14px 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: .75rem; font-weight: 600; color: var(--ink-2); }
+    .icons-grid .icon { width: 24px; height: 24px; color: var(--ink); }
+    .demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+    .state-label { font-family: var(--font-mono); font-size: .6875rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); margin-bottom: 8px; display: block; }
+    .force-focus { box-shadow: var(--focus) !important; }
+    .principles { width: 100%; border-collapse: collapse; }
+    .principles th, .principles td { text-align: left; padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: .9375rem; }
+    .principles th { font-family: var(--font-mono); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); }
+    .screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .screen-link { display: grid; gap: 4px; padding: 16px; border: 1.5px solid var(--ink); border-radius: var(--r-md); background: var(--surface); text-decoration: none; color: var(--ink); }
+    .screen-link:hover { box-shadow: var(--shadow-hard); transform: translate(-2px, -2px); }
+    .screen-link span { font-size: .8125rem; color: var(--ink-2); }
+    .gray { filter: grayscale(1); }
+    @media (max-width: 760px) { .type-row { grid-template-columns: 1fr; gap: 4px; } .sg-sec > .container > header { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body data-page="styleguide">
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="logo" href="index.html" id="logo" aria-label="Resume Assistant home"></a>
+      <nav class="nav" aria-label="Style guide sections">
+        <a href="#colors">Colors</a><a href="#type">Type</a><a href="#components">Components</a><a href="#icons">Icons</a><a href="#screens">Screens</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero container" style="padding-bottom:48px">
+      <p class="eyebrow">UI Design Assignment · Style guide</p>
+      <h1 class="display" style="margin-top:12px">Paper, ink &amp; <span class="grad-text">a little</span> <span class="hl">colour</span>.</h1>
+      <p class="lead" style="margin-top:18px">A resume is a sheet of paper, and tailoring it is like going over it with a highlighter. The interface keeps that idea (clean off‑white paper, near‑black ink, marker yellow for highlights) and adds an indigo‑to‑violet gradient for actions, plus a small family of coral, mint and sky accents so each feature has its own colour.</p>
+      <p class="small muted" style="margin-top:14px">Team: Gaurav Bhandari (Database) · Serene Plummer (Backend) · Ingeet Adhikari (Frontend) · Anup Sharma (QA)</p>
+    </section>
+
+    <!-- 01 COLORS -->
+    <section class="sg-sec" id="colors" aria-labelledby="c-title">
+      <div class="container">
+        <header><span class="sg-num" aria-hidden="true">01</span><div><h2 id="c-title" class="h1">Colors</h2><p class="muted" style="margin-top:6px">Contrast ratios below are calculated live from the CSS, so they stay true if a color changes. Every text pair passes WCAG 2.1 AA (4.5 : 1).</p></div></header>
+
+        <h3 style="margin-bottom:12px">Brand &amp; neutrals</h3>
+        <div class="swatches" id="sw-brand"></div>
+
+        <h3 style="margin:28px 0 12px">Status colors · always paired with an icon, a word and a pattern</h3>
+        <div class="swatches" id="sw-status"></div>
+
+        <div class="grid-2" style="margin-top:28px">
+          <div class="card">
+            <h3>Color‑blind safe: never color alone</h3>
+            <p class="small muted" style="margin:6px 0 14px">Left: normal. Right: the same chips in grayscale. They still read differently thanks to the icon (✓ ✕ !), the fill (solid, dashed, striped) and the word.</p>
+            <div class="grid-2" style="gap:12px">
+              <div class="chips"><span class="chip chip-match"><i data-icon="check"></i>SQL</span><span class="chip chip-miss"><i data-icon="x"></i>Power BI</span><span class="chip chip-weak"><i data-icon="bang"></i>Statistics</span></div>
+              <div class="chips gray" aria-hidden="true"><span class="chip chip-match"><i data-icon="check"></i>SQL</span><span class="chip chip-miss"><i data-icon="x"></i>Power BI</span><span class="chip chip-weak"><i data-icon="bang"></i>Statistics</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Alternate palette (Settings → Accessibility)</h3>
+            <p class="small muted" style="margin:6px 0 14px">Blue / amber / purple, based on Okabe–Ito, for users with red‑green color blindness.</p>
+            <div class="chips" data-cb-preview><span class="chip chip-match"><i data-icon="check"></i>Matched</span><span class="chip chip-weak"><i data-icon="bang"></i>Weak</span><span class="chip chip-miss"><i data-icon="x"></i>Missing</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 TYPE -->
+    <section class="sg-sec" id="type" aria-labelledby="t-title">
+      <div class="container">
+        <header><span class="sg-num" aria-hidden="true">02</span><div><h2 id="t-title" class="h1">Typography</h2><p class="muted" style="margin-top:6px"><strong>Fraunces</strong> (display serif) for headings, <strong>Public Sans</strong> (designed by the U.S. government for accessible interfaces) for body text, <strong>IBM Plex Mono</strong> for labels and numbers.</p></div></header>
+        <div class="type-row"><span class="caption">Display · Fraunces</span><span class="display" style="font-size:3rem">Scan. Match. <em>Improve.</em></span><span class="caption mono">48–68 / 700 · lh 1.02</span></div>
+        <div class="type-row"><span class="caption">H1 · Fraunces</span><span class="h1">Match <em>results</em></span><span class="caption mono">28–40 / 650</span></div>
+        <div class="type-row"><span class="caption">H2 · Fraunces</span><span class="h2">Keywords from the job</span><span class="caption mono">22 / 600</span></div>
+        <div class="type-row"><span class="caption">H3 · Public Sans</span><span class="h3">My resumes</span><span class="caption mono">17 / 700</span></div>
+        <div class="type-row"><span class="caption">Body · Public Sans</span><span>Upload your resume, paste a job posting, and see how well they match.</span><span class="caption mono">16 / 400 · lh 1.5</span></div>
+        <div class="type-row"><span class="caption">Small / UI</span><span class="small">Uploaded Sep 24, 2026 · 14 bullets</span><span class="caption mono">14 / 400–600</span></div>
+        <div class="type-row"><span class="caption">Label · Plex Mono</span><span class="eyebrow">Main feature 2 · Match results</span><span class="caption mono">12 / 500 caps</span></div>
+        <div class="type-row"><span class="caption">Caption (minimum)</span><span class="caption">PDF or DOCX only · up to 10 MB</span><span class="caption mono">12 / 500</span></div>
+        <div class="alert alert-tip" style="margin-top:20px"><i data-icon="type"></i><div class="alert-body"><strong>Readability rules</strong>Body text is 16 px and nothing is smaller than 12 px. Line height 1.5, lines under ~80 characters, left‑aligned, sentence case. All sizes use rem, so Settings → Text size scales the whole UI to 125% or 150% without breaking layout.</div></div>
+      </div>
+    </section>
+
+    <!-- 03 COMPONENTS -->
+    <section class="sg-sec" id="components" aria-labelledby="k-title">
+      <div class="container">
+        <header><span class="sg-num" aria-hidden="true">03</span><div><h2 id="k-title" class="h1">Components</h2><p class="muted" style="margin-top:6px">8‑point spacing grid. Radius 8–10 px on buttons and inputs, 14–20 px on cards, pill for badges. Cards are white with soft, slightly blue shadows; the primary button uses the indigo‑violet gradient.</p></div></header>
+
+        <div class="demo-grid">
+          <div class="card">
+            <h3 style="margin-bottom:14px">Buttons</h3>
+            <span class="state-label">Primary · one per screen</span>
+            <div class="row"><button class="btn btn-primary">Analyze match</button><button class="btn btn-primary force-focus" tabindex="-1">Focus</button><button class="btn btn-primary" disabled>Disabled</button></div>
+            <span class="state-label" style="margin-top:14px">Secondary · ghost · danger</span>
+            <div class="row"><button class="btn btn-secondary">Cancel</button><button class="btn btn-ghost">Forgot password?</button><button class="btn btn-danger"><i data-icon="trash"></i>Delete</button></div>
+            <span class="state-label" style="margin-top:14px">Loading · sizes 36 / 44 / 54 px</span>
+            <div class="row"><button class="btn btn-secondary btn-sm" aria-busy="true"><i data-icon="refresh"></i>Generating…</button><button class="btn btn-secondary">Default</button><button class="btn btn-secondary btn-lg">Large</button></div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom:14px">Form fields · label always visible</h3>
+            <div class="field"><label class="label" for="sg1">Email</label><input class="input" id="sg1" placeholder="you@example.com"></div>
+            <div class="field"><label class="label" for="sg2">Email</label><input class="input" id="sg2" value="alex@email.com"><span class="msg msg-ok"><i data-icon="check-circle"></i>Looks good</span></div>
+            <div class="field"><label class="label" for="sg3">Email</label><input class="input" id="sg3" value="alex@email" aria-invalid="true"><span class="msg msg-error"><i data-icon="x-circle"></i>Add a domain, like .com</span></div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom:14px">Choices</h3>
+            <div class="stack" style="--gap:12px">
+              <label class="check"><input type="checkbox" checked> Checkbox (on)</label>
+              <label class="check"><input type="radio" name="sgr" checked> Radio (selected)</label>
+              <label class="switch"><input type="checkbox" checked><span>Switch</span><span class="switch-state caption">On</span></label>
+              <div class="segmented" role="tablist" aria-label="Example"><button role="tab" aria-selected="true"><i data-icon="link"></i>Paste URL</button><button role="tab" aria-selected="false" tabindex="-1"><i data-icon="clipboard"></i>Paste text</button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom:14px">Feedback &amp; system status</h3>
+            <div class="stack" style="--gap:10px">
+              <div class="alert alert-success"><i data-icon="check-circle"></i><div class="alert-body"><strong>Resume uploaded</strong>We found 5 sections and 14 bullets.</div></div>
+              <div class="alert alert-warn"><i data-icon="alert"></i><div class="alert-body"><strong>We couldn’t read that link</strong>Paste the job description instead.</div></div>
+              <div class="alert alert-error"><i data-icon="x-circle"></i><div class="alert-body"><strong>File too large</strong>Resumes must be 10 MB or smaller.</div></div>
+              <div class="alert alert-info"><i data-icon="info"></i><div class="alert-body"><strong>Tip</strong>Add a job to see your match score.</div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom:14px">Progress &amp; loading</h3>
+            <span class="state-label">Upload · 64%</span>
+            <div class="progress"><span style="--value:64%"></span></div>
+            <span class="state-label" style="margin-top:16px">Working</span>
+            <div class="row"><span class="spinner"></span><span class="small">Reading job posting… usually under 10 s</span></div>
+            <span class="state-label" style="margin-top:16px">Skeleton</span>
+            <div class="stack" style="--gap:8px"><div class="skeleton"></div><div class="skeleton" style="width:70%"></div></div>
+            <span class="state-label" style="margin-top:16px">Toast</span>
+            <div class="toast" style="animation:none"><i data-icon="check-circle"></i><p>Bullet saved</p><button type="button">Undo</button></div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom:14px">Badges &amp; match score</h3>
+            <div class="row"><span class="badge badge-good"><i data-icon="check"></i>Strong · 75–100</span><span class="badge badge-fair"><i data-icon="bang"></i>Fair · 50–74</span><span class="badge badge-bad"><i data-icon="x"></i>Low · 0–49</span></div>
+            <div class="row" style="margin-top:10px"><span class="badge badge-marker">Recommended</span><span class="badge badge-brand"><i data-icon="pencil"></i>Edited</span><span class="badge badge-neutral">Draft</span></div>
+            <div class="score" style="margin-top:18px;grid-template-columns:auto 1fr"><div class="ring" id="sg-ring" style="width:120px;height:120px"></div><p class="small muted">Score = number + ring + word + icon. Color is never the only cue.</p></div>
+          </div>
+        </div>
+
+        <h3 style="margin:32px 0 12px">Step bar · analysis flow</h3>
+        <ol class="steps" data-current="3"></ol>
+      </div>
+    </section>
+
+    <!-- 04 ICONS -->
+    <section class="sg-sec" id="icons" aria-labelledby="i-title">
+      <div class="container">
+        <header><span class="sg-num" aria-hidden="true">04</span><div><h2 id="i-title" class="h1">Icons</h2><p class="muted" style="margin-top:6px">24 px grid, 2 px round stroke. Icons always come with a text label; icon‑only buttons have an accessible name and a tooltip.</p></div></header>
+        <div class="icons-grid" id="icon-grid"></div>
+      </div>
+    </section>
+
+    <!-- 05 PRINCIPLES -->
+    <section class="sg-sec" id="principles" aria-labelledby="p-title">
+      <div class="container">
+        <header><span class="sg-num" aria-hidden="true">05</span><div><h2 id="p-title" class="h1">Design principles applied</h2></div></header>
+        <div class="card" style="overflow-x:auto">
+          <table class="principles">
+            <thead><tr><th scope="col">Principle</th><th scope="col">How it shows up</th><th scope="col">Where</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Consistent layout</strong></td><td>Same top bar, page title position, one primary button (indigo gradient) and the same step bar on every flow screen.</td><td>All signed‑in pages</td></tr>
+              <tr><td><strong>Simple navigation</strong></td><td>Three top links; they become a labelled bottom tab bar on phones. Done steps in the step bar are clickable to go back.</td><td>Dashboard, flow</td></tr>
+              <tr><td><strong>Visibility of system status</strong></td><td>Upload progress with % and bytes, “Reading job posting…”, “Writing 3 options…”, toasts after saving, “1 of 3 bullets improved”.</td><td>Dashboard, Job, Improve</td></tr>
+              <tr><td><strong>Recognition over recall</strong></td><td>Chosen resume stays visible, original bullet stays above the AI options, recent analyses show score and label.</td><td>Job, Improve, Dashboard</td></tr>
+              <tr><td><strong>Error prevention</strong></td><td>File rules shown before upload, Caps Lock warning, disabled Create account until valid, AI “check this skill” flag, type DELETE to delete account.</td><td>Login, Dashboard, Improve, Settings</td></tr>
+              <tr><td><strong>Help users recover</strong></td><td>URL fails → paste description in one click; AI down → edit manually; every delete has Undo or a confirm dialog.</td><td>Job, Improve, Dashboard</td></tr>
+              <tr><td><strong>Contrast</strong></td><td>All text ≥ 4.5 : 1 (most ≥ 7 : 1); focus ring is a 3 px blue outline with a white gap; high‑contrast mode.</td><td>Global, Settings</td></tr>
+              <tr><td><strong>Color‑blind safe</strong></td><td>Status = icon + word + pattern; optional blue/amber/purple palette.</td><td>Results, Settings</td></tr>
+              <tr><td><strong>Readable text &amp; clear labels</strong></td><td>16 px body, 12 px minimum, text size up to 150%, visible labels above fields, buttons say what they do (“Delete resume”, not “OK”).</td><td>Global</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 SCREENS -->
+    <section class="sg-sec" id="screens" aria-labelledby="s-title">
+      <div class="container">
+        <header><span class="sg-num" aria-hidden="true">06</span><div><h2 id="s-title" class="h1">Screens</h2><p class="muted" style="margin-top:6px">Every page is clickable. Data is mocked in <span class="mono">js/data.js</span>.</p></div></header>
+        <div class="screens">
+          <a class="screen-link" href="index.html"><strong>Welcome</strong><span>Landing page</span></a>
+          <a class="screen-link" href="login.html"><strong>Log in</strong><span>FR‑1.1</span></a>
+          <a class="screen-link" href="login.html#signup"><strong>Sign up</strong><span>FR‑1.1 · strength meter</span></a>
+          <a class="screen-link" href="dashboard.html"><strong>Dashboard</strong><span>FR‑2 · upload resume</span></a>
+          <a class="screen-link" href="job.html"><strong>Job posting</strong><span>Feature 1 · FR‑3</span></a>
+          <a class="screen-link" href="results.html"><strong>Match results</strong><span>Feature 2 · FR‑4</span></a>
+          <a class="screen-link" href="improve.html"><strong>Improve bullets</strong><span>Feature 3 · FR‑5</span></a>
+          <a class="screen-link" href="export.html"><strong>Export</strong><span>Feature 4 · FR‑6</span></a>
+          <a class="screen-link" href="done.html"><strong>Confirmation</strong><span>Download complete</span></a>
+          <a class="screen-link" href="settings.html#accessibility"><strong>Settings</strong><span>Accessibility and account</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer container">Resume Assistant · UI Design Assignment · 2026</footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    RAPages.styleguide = function () {
+      const $ = s => document.querySelector(s);
+      $("#logo").innerHTML = RA.LOGO_HTML;
+      RA.scoreRing($("#sg-ring"), 68);
+
+      // WCAG relative luminance + contrast ratio
+      const lum = hex => {
+        const c = hex.replace("#", "").match(/../g).map(h => parseInt(h, 16) / 255)
+          .map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      };
+      const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return ((x + 0.05) / (y + 0.05)).toFixed(1); };
+      const v = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+      const swatch = (label, use, bgVar, fgVar, onVar) => {
+        const bg = v(bgVar), fg = v(fgVar);
+        const r = ratio(fg, bg);
+        return `<div class="swatch">
+          <div class="chip-color" style="background:${bg};color:${fg}"><span>Aa</span><span class="ratio">${r} : 1</span></div>
+          <div class="meta"><strong>${label}</strong><span class="mono">${bg.toUpperCase()}</span> · ${use}</div></div>`;
+      };
+      $("#sw-brand").innerHTML = [
+        swatch("Ink", "headings, body, primary button", "--ink", "--paper"),
+        swatch("Paper", "page background", "--paper", "--ink"),
+        swatch("Marker", "highlight, selected, primary shadow", "--marker", "--ink"),
+        swatch("Indigo", "buttons, links, focus", "--brand", "--surface"),
+        swatch("Ink 2", "secondary text", "--paper", "--ink-2"),
+        swatch("Ink 3", "captions (12 px min)", "--paper", "--ink-3"),
+        swatch("Violet", "gradient end, AI panels", "--violet-tint", "--violet-ink"),
+        swatch("Coral", "analyses, PDF files", "--coral-tint", "--coral-ink"),
+        swatch("Mint", "progress, best score", "--mint-tint", "--mint-ink")
+      ].join("");
+      $("#sw-status").innerHTML = [
+        swatch("Matched / Strong ✓", "solid chip", "--good-tint", "--good"),
+        swatch("Weak / Fair !", "striped chip", "--fair-tint", "--fair"),
+        swatch("Missing / Low ✕", "dashed chip", "--bad-tint", "--bad")
+      ].join("");
+
+      // show the colour-blind palette preview regardless of the current setting
+      const cbVars = { "--good": "#0a5a96", "--good-tint": "#e2eef9", "--fair": "#7a5300", "--fair-tint": "#fcf0cc", "--bad": "#8f2a67", "--bad-tint": "#f7e4ef" };
+      const prev = document.querySelector("[data-cb-preview]");
+      Object.entries(cbVars).forEach(([k, val]) => prev.style.setProperty(k, val));
+
+      $("#icon-grid").innerHTML = RA.iconNames.map(n => `<div>${RA.icon(n)}<span>${n}</span></div>`).join("");
+    };
+  </script>
+</body>
+</html>

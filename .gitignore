@@ -8,3 +8,7 @@ uploads/
 .DS_Store
 
 rgb(34, 185, 185) the files name over here that are sensitive and cannot be shared to the public.
+
+# UI prototype: generated screenshots and PDFs (the final PDF is in docs/)
+exports/
+.claude/
