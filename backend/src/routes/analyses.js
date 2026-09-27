@@ -168,8 +168,22 @@ router.post('/:id/bullets/:bulletId/select', async (req, res) => {
     'SELECT * FROM bullet_suggestions WHERE analysis_id = $1 AND bullet_id = $2',
     [analysis.id, req.params.bulletId]
   );
-  const existing = existingRows[0];
-  if (!existing) return res.status(404).json({ error: 'Generate options for this bullet first.' });
+  let existing = existingRows[0];
+  if (!existing) {
+    // NFR-4.3: when AI generation failed, the user can still save a manually edited bullet.
+    if (typeof text !== 'string' || !text.trim()) {
+      return res.status(404).json({ error: 'Generate options for this bullet first.' });
+    }
+    const resume = await ownedResume(analysis.resume_id, req.user.id);
+    const found = findBullet(resume, req.params.bulletId);
+    if (!found) return res.status(404).json({ error: 'Bullet not found on this resume.' });
+    const { rows: created } = await query(
+      `INSERT INTO bullet_suggestions (analysis_id, bullet_id, original_text, options)
+       VALUES ($1, $2, $3, '[]') RETURNING *`,
+      [analysis.id, req.params.bulletId, found.bullet.text]
+    );
+    existing = created[0];
+  }
 
   let selectedText = text;
   if (selectedText == null && Number.isInteger(index)) {

@@ -1,170 +1,348 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import { Icon } from '../lib/icons.jsx';
+import { Alert, LevelBadge, ScoreRing, useUI } from '../lib/ui.jsx';
+import { fileKind, fmtDate, jobLabel, kb } from '../lib/format.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
 
-function formatSize(bytes) {
-  if (!bytes) return '';
-  const kb = bytes / 1024;
-  return kb < 1024 ? `${Math.round(kb)} KB` : `${(kb / 1024).toFixed(1)} MB`;
-}
-function formatDate(iso) {
-  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+const MAX = 10 * 1024 * 1024;
+
+function DropArt() {
+  return (
+    <svg className="dropzone-art" viewBox="0 0 84 84" aria-hidden="true">
+      <rect x="18" y="8" width="44" height="58" rx="4" fill="#fffefb" stroke="#16171d" strokeWidth="2.5" />
+      <path d="M27 22h26M27 32h20M27 42h24" stroke="#ede7da" strokeWidth="5" strokeLinecap="round" />
+      <path d="M27 32h20" stroke="#ffd23f" strokeWidth="5" strokeLinecap="round" />
+      <circle cx="60" cy="60" r="16" fill="#16171d" />
+      <path d="M60 67V53m-6 6 6-6 6 6" stroke="#ffd23f" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
-// Screen 2: Resume Upload Dashboard
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const inputRef = useRef(null);
+  const { displayName } = useAuth();
+  const { toast, confirm } = useUI();
+  const location = useLocation();
   const [resumes, setResumes] = useState(null);
-  const [dragging, setDragging] = useState(false);
-  const [progress, setProgress] = useState(null);
-  const [error, setError] = useState('');
+  const [analyses, setAnalyses] = useState([]);
+  const [jobs, setJobs] = useState({});
+  const [loadError, setLoadError] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const [drag, setDrag] = useState(false);
+  const [upload, setUpload] = useState(null); // {file, pct, phase: 'uploading'|'reading'|'done'|'error', ...}
+  const abortRef = useRef(null);
+  const analysesRef = useRef(null);
 
-  const refresh = () => api.listResumes().then((d) => setResumes(d.resumes));
-  useEffect(() => {
-    refresh();
+  const load = useCallback(async () => {
+    try {
+      const [r, a, j] = await Promise.all([api.listResumes(), api.listAnalyses(), api.listJobPostings()]);
+      setResumes(r.resumes);
+      setAnalyses(a.analyses);
+      setJobs(Object.fromEntries(j.jobPostings.map((p) => [p.id, p])));
+      setLoadError('');
+    } catch (err) {
+      setLoadError(err.message);
+      setResumes((cur) => cur || []);
+    }
   }, []);
+
+  useEffect(() => {
+    document.title = 'Dashboard · Forma';
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (location.state?.welcome) toast('Account created. Let’s upload your first resume.');
+  }, [location.state, toast]);
+
+  useEffect(() => {
+    if (location.hash === '#analyses') setTimeout(() => analysesRef.current?.focus(), 50);
+  }, [location.hash]);
+
+  const ready = (resumes || []).filter((r) => !r.parseError);
+  const latest = analyses[0];
+  const latestJob = latest && jobs[latest.jobPostingId];
+  const best = analyses.length ? Math.max(...analyses.map((a) => a.score ?? 0)) : null;
+  const first = displayName.split(' ')[0];
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   const handleFile = async (file) => {
     if (!file) return;
-    setError('');
-    if (!/\.(pdf|docx)$/i.test(file.name)) {
-      setError('Only PDF or DOCX files are supported.'); // Screen 2: format warning
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf', 'docx'].includes(ext)) {
+      setUpload({ phase: 'error', title: 'That file type isn’t supported', text: `“${file.name}” is a .${ext} file. Upload a PDF or DOCX instead.` });
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('That file is over the 10MB limit.');
+    if (file.size > MAX) {
+      setUpload({ phase: 'error', title: 'File too large', text: `Resumes must be 10 MB or smaller. This one is ${(file.size / 1048576).toFixed(1)} MB.` });
       return;
     }
-    setProgress(0);
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setUpload({ phase: 'uploading', file, ext, pct: 0 });
     try {
-      await api.uploadResumeWithProgress(file, setProgress);
-      await refresh();
+      const { resume } = await api.uploadResumeWithProgress(
+        file,
+        (pct) => setUpload((u) => (u && u.file === file ? { ...u, pct, phase: pct >= 100 ? 'reading' : 'uploading' } : u)),
+        ctrl.signal
+      );
+      setUpload({ phase: 'done', resume });
+      load();
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setProgress(null);
+      if (err.name === 'AbortError') return;
+      setUpload({ phase: 'error', title: 'We couldn’t upload that resume', text: err.message });
     }
   };
 
-  const handleDelete = async (id) => {
-    await api.deleteResume(id);
-    refresh();
+  const cancelUpload = () => {
+    abortRef.current?.abort();
+    setUpload(null);
+    toast('Upload cancelled', { icon: 'x-circle' });
   };
+
+  const deleteResume = async (r, btn) => {
+    const ok = await confirm({
+      title: 'Delete this resume?',
+      body: <><strong>{r.filename}</strong> and its analyses will be permanently deleted. This can’t be undone.</>,
+      confirmLabel: 'Delete resume',
+    });
+    if (!ok) {
+      btn?.focus();
+      return;
+    }
+    try {
+      await api.deleteResume(r.id);
+      toast(`Deleted ${r.filename}`, { icon: 'trash' });
+      load();
+    } catch (err) {
+      toast(err.message, { icon: 'x-circle' });
+    }
+  };
+
+  const visibleAnalyses = showAll ? analyses : analyses.slice(0, 5);
 
   return (
-    <AppShell>
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '56px 24px 96px' }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 34, fontWeight: 600, margin: '0 0 8px', color: 'var(--ink)' }}>
-          Your resumes
-        </h1>
-        <p style={{ fontSize: 17, color: 'var(--ink2)', margin: '0 0 32px' }}>
-          Upload a resume, then match it against a job posting to see your ATS score.
-        </p>
-
-        {error ? (
-          <div style={{ background: 'rgba(224,82,82,.08)', color: 'var(--error)', fontSize: 14, padding: '10px 14px', borderRadius: 12, marginBottom: 16 }}>
-            {error}
-          </div>
-        ) : null}
-
-        <div
-          className="lg-card"
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            handleFile(e.dataTransfer.files?.[0]);
-          }}
-          style={{
-            borderRadius: 18,
-            padding: '40px 32px',
-            textAlign: 'center',
-            marginBottom: 32,
-            outline: dragging ? '2px solid var(--primary)' : 'none',
-            outlineOffset: 4,
-          }}
-        >
-          <div style={{ width: 48, height: 48, margin: '0 auto 14px', borderRadius: 9999, background: 'var(--chip)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 15, height: 15, borderLeft: '2px solid var(--ink)', borderTop: '2px solid var(--ink)', transform: 'rotate(45deg)', marginTop: 5 }} />
-          </div>
-          <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 4, color: 'var(--ink)' }}>Drag &amp; drop your resume</div>
-          <div style={{ fontSize: 13, color: 'var(--ink3)', marginBottom: 16 }}>PDF or DOCX only, up to 10MB</div>
-
-          {progress !== null ? (
-            <div style={{ maxWidth: 240, margin: '0 auto' }}>
-              <div style={{ height: 6, borderRadius: 3, background: 'var(--hairline)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${progress}%`, background: 'var(--primary)', transition: 'width .15s ease' }} />
+    <AppShell active="dashboard" back="/">
+      <main id="main" className="page">
+        <div className="container">
+          <section className="banner" aria-labelledby="welcome-title">
+            <div className="blobs" aria-hidden="true"><i /><i /><i /><i /></div>
+            <div className="banner-text">
+              <p className="eyebrow">{today}</p>
+              <h1 id="welcome-title">Welcome back, <em>{first}</em> <span aria-hidden="true" className="wave">✦</span></h1>
+              <p>
+                {ready.length
+                  ? 'Your newest resume is ready. Compare it with a job posting to see your match score.'
+                  : 'Upload your resume to get started. Then compare it with a job posting to see your match score.'}
+              </p>
+              <div className="row" style={{ marginTop: 20 }}>
+                <Link className="btn btn-light btn-lg" to="/job"><Icon name="plus" />New analysis</Link>
+                {latest && <Link className="btn btn-glass btn-lg" to={`/results/${latest.id}`}>Open last result</Link>}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 6 }}>Uploading… {progress}%</div>
             </div>
-          ) : (
-            <>
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                style={{ display: 'none' }}
-                onChange={(e) => handleFile(e.target.files?.[0])}
-              />
-              <button className="btn-outline" style={{ padding: '9px 18px', fontSize: 14 }} onClick={() => inputRef.current?.click()}>
-                Browse Files
-              </button>
-            </>
-          )}
-        </div>
-
-        <h2 style={{ fontSize: 14, fontWeight: 600, letterSpacing: -0.224, color: 'var(--ink3)', margin: '0 0 14px' }}>
-          {resumes?.length ? 'Uploaded resumes' : ''}
-        </h2>
-        {resumes === null ? null : resumes.length === 0 ? (
-          <p style={{ fontSize: 14, color: 'var(--ink3)' }}>No resumes uploaded yet.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {resumes.map((r) => (
-              <div
-                key={r.id}
-                style={{
-                  border: '1px solid var(--hairline)',
-                  borderRadius: 16,
-                  padding: 18,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  background: 'var(--canvas)',
-                }}
-              >
-                <div style={{ width: 36, height: 36, borderRadius: 9999, background: 'var(--chip)', flex: 'none' }} />
-                <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => navigate(`/resumes/${r.id}/job-posting`)}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>{r.filename}</div>
-                  <div style={{ fontSize: 13, color: 'var(--ink3)' }}>
-                    {formatSize(r.sizeBytes)} · Uploaded {formatDate(r.createdAt)}
-                    {r.parseError ? <span style={{ color: 'var(--warning)' }}> · Couldn't fully parse structure</span> : null}
-                  </div>
+            {latest && (
+              <div className="banner-art" aria-hidden="true">
+                <div className="glass-card">
+                  <span className="eyebrow">Last match{latestJob?.company ? ` · ${latestJob.company}` : ''}</span>
+                  <ScoreRing value={latest.score ?? 0} className="ring-sm" />
                 </div>
-                <button
-                  className="btn-primary"
-                  style={{ padding: '8px 16px', fontSize: 13 }}
-                  onClick={() => navigate(`/resumes/${r.id}/job-posting`)}
-                >
-                  Match to a Job
-                </button>
-                <a
-                  onClick={() => handleDelete(r.id)}
-                  style={{ fontSize: 13, color: 'var(--ink3)', cursor: 'pointer', textDecoration: 'none' }}
-                  title="Delete resume"
-                >
-                  Delete
-                </a>
               </div>
-            ))}
+            )}
+          </section>
+
+          {loadError && <div style={{ marginBottom: 20 }}><Alert tone="error" role="alert" title="We couldn’t load your dashboard">{loadError}</Alert></div>}
+
+          <div className="tiles" aria-label="Your activity">
+            <div className="tile"><span className="tile-ico"><Icon name="file" /></span><div><div className="n">{ready.length}</div><div className="l">Resumes ready</div></div></div>
+            <div className="tile coral"><span className="tile-ico"><Icon name="target" /></span><div><div className="n">{analyses.length}</div><div className="l">Jobs analyzed</div></div></div>
+            <div className="tile mint"><span className="tile-ico"><Icon name="trend" /></span><div><div className="n">{best === null ? '—' : `${best}%`}</div><div className="l">Best match score</div></div></div>
           </div>
-        )}
+
+          <div className="grid-main">
+            <div className="stack" style={{ '--gap': '28px' }}>
+              {/* Upload */}
+              <section className="card card-ink glow" aria-labelledby="upload-title">
+                <div className="card-head">
+                  <h2 id="upload-title"><Icon name="upload" />Upload a resume</h2>
+                  <span className="caption">Step 1 of 5</span>
+                </div>
+                <div
+                  className="dropzone"
+                  data-drag={drag}
+                  onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
+                  onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
+                  onDrop={(e) => { e.preventDefault(); setDrag(false); handleFile(e.dataTransfer.files[0]); }}
+                >
+                  <DropArt />
+                  <h3>Drag and drop your resume here</h3>
+                  <p className="muted">or</p>
+                  <label className="btn btn-secondary" htmlFor="file-input"><Icon name="file" />Browse files</label>
+                  <input
+                    type="file"
+                    id="file-input"
+                    className="visually-hidden"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    aria-describedby="file-rules"
+                    onChange={(e) => { handleFile(e.target.files[0]); e.target.value = ''; }}
+                  />
+                  <p className="caption row" id="file-rules" style={{ gap: 6, justifyContent: 'center' }}><Icon name="info" className="icon-sm" />PDF or DOCX only · up to 10 MB</p>
+                </div>
+                <div aria-live="polite">
+                  {upload && (upload.phase === 'uploading' || upload.phase === 'reading') && (
+                    <div className="upload-status">
+                      <div className="row-between">
+                        <div className="file-cell">
+                          <span className="file-ico" data-kind={upload.ext}>{upload.ext.toUpperCase()}</span>
+                          <div>
+                            <div>{upload.file.name}</div>
+                            <div className="small muted">{kb((upload.file.size * upload.pct) / 100)} of {kb(upload.file.size)}</div>
+                          </div>
+                        </div>
+                        <div className="row">
+                          <strong className="mono">{upload.pct}%</strong>
+                          <button className="btn btn-secondary btn-sm" type="button" onClick={cancelUpload}>Cancel</button>
+                        </div>
+                      </div>
+                      <div className="progress" style={{ marginTop: 12 }} role="progressbar" aria-label={`Uploading ${upload.file.name}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={upload.pct}>
+                        <span style={{ '--value': `${upload.pct}%` }} />
+                      </div>
+                      <p className="small muted" style={{ marginTop: 8 }}>
+                        {upload.phase === 'reading'
+                          ? <span className="row" style={{ gap: 8 }}><span className="spinner" />Reading sections and bullets… this can take up to 30 seconds</span>
+                          : 'Uploading… next we’ll read your sections'}
+                      </p>
+                    </div>
+                  )}
+                  {upload?.phase === 'error' && (
+                    <div style={{ marginTop: 16 }}><Alert tone="error" role="alert" title={upload.title}>{upload.text}</Alert></div>
+                  )}
+                  {upload?.phase === 'done' && (
+                    <div style={{ marginTop: 16 }}>
+                      {upload.resume.parseError ? (
+                        <Alert tone="warn" title="Uploaded, but we couldn’t read its sections">
+                          {upload.resume.parseError} You can still try re‑uploading, or upload a PDF exported from Word or Google Docs.
+                        </Alert>
+                      ) : (
+                        <div className="alert alert-success">
+                          <Icon name="check-circle" />
+                          <div className="alert-body">
+                            <strong>Resume uploaded</strong>
+                            We found {upload.resume.sectionCount} sections and {upload.resume.bulletCount} bullets in {upload.resume.filename}.
+                            <div className="alert-actions">
+                              <Link className="btn btn-primary btn-sm" to={`/job?resume=${upload.resume.id}`}>Compare with a job <Icon name="arrow-right" /></Link>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Resumes */}
+              <section className="card" aria-labelledby="resumes-title">
+                <div className="card-head">
+                  <h2 id="resumes-title">My resumes <span className="count">{resumes ? resumes.length : '…'}</span></h2>
+                  <span className="caption">Sorted by newest</span>
+                </div>
+                <table className="table">
+                  <caption className="visually-hidden">Your uploaded resumes</caption>
+                  <thead><tr><th scope="col">File</th><th scope="col">Uploaded</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+                  <tbody>
+                    {resumes === null && (
+                      <tr><td colSpan="4"><div className="stack" style={{ '--gap': '8px' }}><div className="skeleton" /><div className="skeleton" style={{ width: '70%' }} /></div></td></tr>
+                    )}
+                    {resumes?.length === 0 && (
+                      <tr><td colSpan="4"><div className="empty">No resumes yet. Upload one above to get started.</div></td></tr>
+                    )}
+                    {resumes?.map((r) => {
+                      const kind = fileKind(r.filename);
+                      return (
+                        <tr key={r.id}>
+                          <td>
+                            <div className="file-cell">
+                              <span className="file-ico" data-kind={kind}>{kind.toUpperCase()}</span>
+                              <div>
+                                {r.filename}
+                                {r.parseError && (
+                                  <div className="row-note"><Icon name="info" className="icon-sm" /><span>We couldn’t read its sections. Upload a PDF exported from Word or Google Docs so we can read the text.</span></div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="muted">{fmtDate(r.createdAt)}</td>
+                          <td>
+                            {r.parseError
+                              ? <span className="badge badge-bad"><Icon name="x" />Couldn’t read text</span>
+                              : <span className="badge badge-good"><Icon name="check" />Ready · {r.bulletCount} bullets</span>}
+                          </td>
+                          <td>
+                            <div className="row" style={{ justifyContent: 'flex-end' }}>
+                              {r.parseError
+                                ? <label className="btn btn-secondary btn-sm" htmlFor="file-input"><Icon name="upload" />Re‑upload</label>
+                                : <Link className="btn btn-secondary btn-sm" to={`/job?resume=${r.id}`}><Icon name="target" />Analyze</Link>}
+                              <button className="btn btn-ghost btn-sm btn-icon" type="button" aria-label={`Delete ${r.filename}`} data-tip="Delete resume"
+                                onClick={(e) => deleteResume(r, e.currentTarget)}>
+                                <Icon name="trash" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </section>
+            </div>
+
+            <aside className="stack sticky" style={{ '--gap': '20px' }}>
+              <section className="card" id="analyses" aria-labelledby="analyses-title" tabIndex={-1} ref={analysesRef}>
+                <div className="card-head">
+                  <h2 id="analyses-title">Recent analyses</h2>
+                  {analyses.length > 5 && (
+                    <button className="link-btn small" type="button" onClick={() => setShowAll((s) => !s)}>{showAll ? 'Show fewer' : 'View all'}</button>
+                  )}
+                </div>
+                {analyses.length === 0 ? (
+                  <p className="small muted">No analyses yet. Press <b>New analysis</b> to compare a resume with a job posting.</p>
+                ) : (
+                  <ul className="list">
+                    {visibleAnalyses.map((a) => {
+                      const j = jobs[a.jobPostingId];
+                      return (
+                        <li key={a.id}>
+                          <Link className="analysis-item" to={`/results/${a.id}`}>
+                            <span>
+                              <strong>{jobLabel(j)}</strong>
+                              <span className="small muted">{[j?.company, fmtDate(a.createdAt)].filter(Boolean).join(' · ')}</span>
+                            </span>
+                            <span className="mini-score">
+                              <span className="n">{a.score}<span className="small">%</span></span>
+                              <LevelBadge value={a.score} />
+                            </span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+
+              <div className="alert alert-tip">
+                <Icon name="zap" />
+                <div className="alert-body">
+                  <strong>Next step</strong>
+                  {ready.length
+                    ? <>Your newest resume is ready. Press <b>New analysis</b> to compare it with a job posting.</>
+                    : <>Upload a PDF or DOCX resume above. We’ll pull out your sections and bullets automatically.</>}
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
       </main>
     </AppShell>
   );

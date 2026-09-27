@@ -37,6 +37,19 @@ const upload = multer({
 const router = Router();
 router.use(requireAuth);
 
+function resumeCounts(parsed) {
+  if (!parsed) return { bulletCount: 0, sectionCount: 0 };
+  const bulletCount = (parsed.experience || []).reduce((n, exp) => n + (exp.bullets?.length || 0), 0);
+  const sectionCount = [
+    Object.values(parsed.contactInfo || {}).some(Boolean),
+    !!parsed.summary,
+    parsed.skills?.length > 0,
+    parsed.experience?.length > 0,
+    parsed.education?.length > 0,
+  ].filter(Boolean).length;
+  return { bulletCount, sectionCount };
+}
+
 function serializeResume(row, { includeParsed = false } = {}) {
   const out = {
     id: row.id,
@@ -44,6 +57,7 @@ function serializeResume(row, { includeParsed = false } = {}) {
     sizeBytes: row.size_bytes,
     createdAt: row.created_at,
     parseError: row.parse_error,
+    ...resumeCounts(row.parsed_data), // shown on the dashboard ("Ready · 14 bullets")
   };
   if (includeParsed) out.parsed = row.parsed_data;
   return out;

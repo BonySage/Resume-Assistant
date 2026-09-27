@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import fs from 'node:fs';
 import { query } from '../db.js';
 import { signToken, requireAuth, COOKIE_OPTIONS } from '../middleware/auth.js';
 import { isValidEmail, passwordStrengthError } from '../lib/validators.js';
@@ -57,6 +58,18 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user) });
+});
+
+// Settings → Delete account. Resumes, job postings, analyses and bullet
+// suggestions cascade in the database; uploaded files are removed here.
+router.delete('/me', requireAuth, async (req, res) => {
+  const { rows } = await query('SELECT stored_path FROM resumes WHERE user_id = $1', [req.user.id]);
+  await query('DELETE FROM users WHERE id = $1', [req.user.id]);
+  for (const { stored_path: p } of rows) {
+    if (p && fs.existsSync(p)) fs.unlinkSync(p);
+  }
+  res.clearCookie('token', COOKIE_OPTIONS);
+  res.json({ ok: true });
 });
 
 export default router;
