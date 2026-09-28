@@ -1,13 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { config } from '../config.js';
 
-export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+export const MODEL = config.anthropicModel;
 
 let client = null;
 export function getClient() {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!config.anthropicApiKey || config.anthropicApiKey === 'your-key-here') {
     throw new Error('The AI service is not configured on the server yet.');
   }
-  if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!client) {
+    client = new Anthropic({
+      apiKey: config.anthropicApiKey,
+      // NFR-1.4: AI generation should finish within ~15s. The SDK default is
+      // 10 minutes; fail sooner so the user can fall back to manual editing.
+      timeout: 20_000, // milliseconds
+      maxRetries: 1, // retries 429/5xx/network errors once
+    });
+  }
   return client;
 }
 
@@ -20,7 +29,8 @@ export function friendlyAiError(err) {
   if (err?.status === 429) {
     return new Error('The AI service is busy right now. Please try again in a moment.');
   }
-  if (err?.status >= 500 || err?.name === 'APIConnectionError') {
+  // APIConnectionError (and its timeout subclass) has no HTTP status.
+  if (err?.status >= 500 || err instanceof Anthropic.APIConnectionError) {
     return new Error('The AI service is temporarily unavailable. Please try again shortly.');
   }
   return err instanceof Error && !err.status ? err : new Error('The AI service is temporarily unavailable.');

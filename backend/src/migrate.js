@@ -1,13 +1,17 @@
-import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { config } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', '..', 'db', 'migrations');
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+if (!config.databaseUrl) {
+  console.error('DATABASE_URL is not set — see backend/.env.example.');
+  process.exit(1);
+}
+const pool = new pg.Pool({ connectionString: config.databaseUrl });
 
 async function main() {
   await pool.query(`

@@ -8,12 +8,22 @@ const PDFJS_DIST_ROOT = path.join(__dirname, '..', '..', 'node_modules', 'pdfjs-
 const STANDARD_FONT_DATA_URL = pathToFileURL(path.join(PDFJS_DIST_ROOT, 'standard_fonts') + path.sep).href;
 const CMAPS_URL = pathToFileURL(path.join(PDFJS_DIST_ROOT, 'cmaps') + path.sep).href;
 
+const PDF_MIME = 'application/pdf';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+// True when the file's first bytes match its claimed type: PDFs start with
+// "%PDF-", DOCX files are ZIP archives starting with "PK\x03\x04".
+export function matchesFileSignature(buffer, mimeType) {
+  if (!Buffer.isBuffer(buffer)) return false;
+  if (mimeType === PDF_MIME) return buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+  if (mimeType === DOCX_MIME) return buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+  return false;
+}
+
 export async function extractResumeText(buffer, mimeType, filename) {
   const lower = (filename || '').toLowerCase();
-  const isPdf = mimeType === 'application/pdf' || lower.endsWith('.pdf');
-  const isDocx =
-    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    lower.endsWith('.docx');
+  const isPdf = mimeType === PDF_MIME || lower.endsWith('.pdf');
+  const isDocx = mimeType === DOCX_MIME || lower.endsWith('.docx');
 
   if (isPdf) {
     return normalize(await extractPdfText(buffer));

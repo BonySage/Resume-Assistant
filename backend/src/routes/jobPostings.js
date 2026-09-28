@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { fetchJobPostingText, parseJobPostingText } from '../lib/jobPosting.js';
-import { sanitizeText } from '../lib/sanitize.js';
+import { cleanText } from '../lib/validators.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -53,7 +53,7 @@ router.post('/', async (req, res) => {
       return res.status(422).json({ error: err.message, fallbackToPaste: true });
     }
   } else {
-    rawText = sanitizeText(text);
+    rawText = cleanText(text);
     if (rawText.length < 50) {
       return res.status(400).json({ error: 'That description looks too short to analyze.' });
     }

@@ -7,7 +7,7 @@ PostgreSQL schema and migrations for the AI Resume Assistant.
 | Table | Purpose |
 | --- | --- |
 | users | Accounts: email (unique), password hash, created date |
-| resumes | Uploaded files: owner, filename, storage path, type, size, parsed data (JSONB) |
+| resumes | Uploaded resumes: owner, filename, type, size, extracted text, parsed data (JSONB). The file itself is not kept |
 | job_postings | Job info: owner, source URL, title, company, raw text, parsed data (JSONB) |
 | analyses | Resume-to-job match results: score, matched / missing / weak keywords |
 | bullet_suggestions | Original bullet, 3 AI options, selected option |
