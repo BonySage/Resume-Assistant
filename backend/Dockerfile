@@ -13,8 +13,9 @@ COPY backend/src ./src
 # migrate.js reads ../../db/migrations relative to src/, i.e. /app/db/migrations.
 COPY db/migrations /app/db/migrations
 
-# Uploaded resumes are parsed in memory and never written to disk, so the
-# app needs no writable directory.
+# Uploaded resumes live on a volume (see docker-compose.yml).
+ENV UPLOAD_DIR=/app/uploads
+RUN mkdir -p /app/uploads && chown -R node:node /app
 USER node
 
 EXPOSE 3000
