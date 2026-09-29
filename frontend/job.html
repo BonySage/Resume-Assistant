@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add a job posting · Resume Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+</head>
+<body data-page="job" data-auth="required">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div data-shell data-active="new"></div>
+
+  <main id="main" class="page">
+    <div class="container">
+      <ol class="steps" data-current="2"></ol>
+
+      <div class="grid-main">
+        <section class="card card-ink glow" aria-labelledby="job-title">
+          <p class="eyebrow">Main feature 1</p>
+          <h1 id="job-title" style="margin-top:6px">Add the job you’re <em>applying for</em></h1>
+          <p class="muted" style="margin-top:8px">Paste a link to the posting, or paste the job description text.</p>
+
+          <div class="segmented" role="tablist" aria-label="How do you want to add the job?" style="margin-top:24px">
+            <button role="tab" id="tab-url" aria-controls="panel-url" aria-selected="true" type="button"><i data-icon="link"></i>Paste URL</button>
+            <button role="tab" id="tab-text" aria-controls="panel-text" aria-selected="false" type="button" tabindex="-1"><i data-icon="clipboard"></i>Paste description</button>
+          </div>
+
+          <!-- URL -->
+          <div id="panel-url" role="tabpanel" aria-labelledby="tab-url" style="margin-top:24px">
+            <form id="url-form" novalidate>
+              <div class="field">
+                <label class="label" for="job-url">Job posting link</label>
+                <div class="row" style="flex-wrap:nowrap;align-items:stretch">
+                  <input class="input" id="job-url" type="url" inputmode="url" placeholder="https://careers.example.com/jobs/123" aria-describedby="url-hint url-msg" value="https://www.linkedin.com/jobs/view/3894120567">
+                  <button class="btn btn-secondary" type="submit" id="extract-btn"><i data-icon="scan"></i>Extract job</button>
+                </div>
+                <span class="hint" id="url-hint">Works with LinkedIn, Indeed, Glassdoor and most company career pages.</span>
+                <span class="msg msg-error" id="url-msg" aria-live="polite"></span>
+              </div>
+            </form>
+            <div id="url-status" aria-live="polite" style="margin-top:16px"></div>
+          </div>
+
+          <!-- Paste text -->
+          <div id="panel-text" role="tabpanel" aria-labelledby="tab-text" style="margin-top:24px" hidden>
+            <div class="field">
+              <label class="label" for="job-text">Job description <span class="caption mono" id="char-count">0 / 10,000</span></label>
+              <textarea class="textarea" id="job-text" maxlength="10000" placeholder="Paste the full posting, including Requirements and Responsibilities…" aria-describedby="text-hint"></textarea>
+              <span class="hint" id="text-hint">Include at least a few sentences so we can find the keywords.</span>
+            </div>
+          </div>
+
+          <div class="row-between" style="margin-top:28px;padding-top:20px;border-top:1px solid var(--line)">
+            <a class="btn btn-secondary" href="dashboard.html"><i data-icon="arrow-left"></i>Back</a>
+            <button class="btn btn-primary btn-lg" type="button" id="analyze" disabled>Analyze match <i data-icon="arrow-right"></i></button>
+          </div>
+        </section>
+
+        <aside class="stack sticky" style="--gap:20px">
+          <section class="card" aria-labelledby="matched-title">
+            <p class="eyebrow" id="matched-title">Resume being matched</p>
+            <div class="file-cell" style="margin-top:12px">
+              <span class="file-ico" data-kind="pdf" id="res-kind">PDF</span>
+              <div><div id="res-name"></div><div class="small muted" id="res-meta"></div></div>
+            </div>
+            <a class="small" href="dashboard.html" style="display:inline-block;margin-top:12px">Change resume</a>
+          </section>
+
+          <section class="card card-flat" aria-labelledby="tips-title">
+            <h2 class="h3" id="tips-title" style="display:flex;gap:8px;align-items:center"><i data-icon="info"></i>Tips for best results</h2>
+            <ul class="small muted" style="margin:12px 0 0;padding-left:18px;display:grid;gap:8px">
+              <li>Include the full “Requirements” and “Responsibilities” sections.</li>
+              <li>One job per analysis. You can run as many as you like.</li>
+              <li>We never apply to jobs or contact employers for you.</li>
+            </ul>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/pages/job.js"></script>
+</body>
+</html>

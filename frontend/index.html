@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resume Assistant · Tailor your resume to any job</title>
+  <meta name="description" content="Upload your resume, paste a job posting, see your match score and improve weak bullets with AI.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+</head>
+<body data-page="welcome">
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="topbar topbar-dark">
+    <div class="container topbar-inner">
+      <a class="logo" href="index.html" aria-label="Resume Assistant home" id="logo"></a>
+      <nav class="nav" aria-label="Main">
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#faq">FAQ</a>
+        <a href="styleguide.html">Style guide</a>
+      </nav>
+      <div class="topbar-actions">
+        <a class="btn btn-glass btn-sm" href="login.html">Log in</a>
+        <a class="btn btn-primary btn-sm" href="login.html#signup">Get started</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero hero-dark" aria-labelledby="hero-title">
+      <div class="grid-glow" aria-hidden="true"></div>
+      <div class="blobs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="container">
+      <div class="hero-grid">
+        <div>
+          <span class="pill-glow"><span class="dot"></span>Free for students · AI‑powered</span>
+          <h1 id="hero-title" class="display" style="margin-top:20px">Tailor your resume to <span class="hl">any job</span> in <em class="grad-bright">minutes</em>.</h1>
+          <p class="lead">Upload your resume, paste a job posting, and see how well they match. Then improve weak bullet points with AI that you stay in control of.</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary btn-lg" href="login.html#signup">Get started, it’s free <i data-icon="arrow-right"></i></a>
+            <a class="btn btn-glass btn-lg" href="#how">See how it works</a>
+          </div>
+          <p class="trust"><i data-icon="shield"></i>Your resume stays private. Only you can see it.</p>
+        </div>
+
+        <!-- Example preview: real UI components, so users see what they'll get -->
+        <div class="collage" role="img" aria-label="Example: a resume with highlighted keywords and a match score card showing 68 percent, Fair match, 12 matched, 6 missing and 3 weak keywords.">
+          <div class="paper-resume" aria-hidden="true">
+            <div class="name">Alex Rivera</div>
+            <div class="caption">alex.rivera@email.com · linkedin.com/in/alexrivera</div>
+            <div class="sec">Experience</div>
+            <p><strong>Data Intern · Contoso</strong></p>
+            <p>• Built <mark>Tableau</mark> dashboards to track weekly sales for the team.</p>
+            <p>• Automated a weekly <mark>Excel</mark> report with <mark>Python</mark>.</p>
+            <div class="sec">Skills</div>
+            <p><mark>SQL</mark>, <mark>Excel</mark>, Python, Tableau, Data cleaning</p>
+            <div class="line" style="width:90%"></div>
+            <div class="line" style="width:70%"></div>
+          </div>
+          <div class="float-score" aria-hidden="true">
+            <div class="eyebrow">Junior Data Analyst · Northwind Bank</div>
+            <div class="score" style="margin-top:12px">
+              <div class="ring" id="hero-ring"></div>
+              <div class="stack" style="--gap:8px">
+                <span class="badge badge-fair"><i data-icon="bang"></i>Fair match</span>
+                <div class="chips">
+                  <span class="chip chip-match"><i data-icon="check"></i>12 matched</span>
+                  <span class="chip chip-miss"><i data-icon="x"></i>6 missing</span>
+                  <span class="chip chip-weak"><i data-icon="bang"></i>3 weak</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="glass-pill gp-1" aria-hidden="true"><i data-icon="trend"></i><span><b>68% → 81%</b> after 3 edits</span></div>
+          <div class="glass-pill gp-2" aria-hidden="true"><i data-icon="sparkles"></i><span><b>3 AI rewrites</b> ready</span></div>
+          <div class="sticky-note" aria-hidden="true">
+            <span class="mono">AI suggestion</span>
+            “Designed Tableau dashboards reporting weekly sales KPIs to 3 managers.”
+          </div>
+        </div>
+      </div>
+      </div>
+    </section>
+
+    <div class="ticker" aria-hidden="true">
+      <div class="ticker-track">
+        <span>SQL</span><span>Power BI</span><span>Stakeholder reporting</span><span>Python</span><span>A/B testing</span><span>Tableau</span><span>KPIs</span><span>Excel</span><span>Communication</span><span>Data cleaning</span><span>Snowflake</span><span>ETL</span>
+        <span>SQL</span><span>Power BI</span><span>Stakeholder reporting</span><span>Python</span><span>A/B testing</span><span>Tableau</span><span>KPIs</span><span>Excel</span><span>Communication</span><span>Data cleaning</span><span>Snowflake</span><span>ETL</span>
+      </div>
+    </div>
+
+    <section class="how" id="how" aria-labelledby="how-title">
+      <div class="container">
+        <div class="row-between">
+          <div>
+            <p class="eyebrow">How it works</p>
+            <h2 id="how-title" class="display" style="font-size:clamp(2rem,1.4rem + 2vw,3rem);margin-top:8px">Scan. Match. <em>Improve.</em></h2>
+          </div>
+          <p class="muted" style="max-width:26em">Three steps, the same three you’ll see in the step bar inside the app, so nothing is a surprise.</p>
+        </div>
+        <ol class="how-grid" style="list-style:none;padding:0">
+          <li class="how-card">
+            <span class="how-num" aria-hidden="true">01</span>
+            <span class="how-ico"><i data-icon="scan"></i></span><h3>Scan</h3>
+            <p>Upload your resume as a PDF or Word file. We pull out your experience, skills and education.</p>
+          </li>
+          <li class="how-card">
+            <span class="how-num" aria-hidden="true">02</span>
+            <span class="how-ico"><i data-icon="target"></i></span><h3>Match</h3>
+            <p>Paste a job link or description. Get a 0–100 score and see exactly which keywords you’re missing.</p>
+          </li>
+          <li class="how-card">
+            <span class="how-num" aria-hidden="true">03</span>
+            <span class="how-ico"><i data-icon="sparkles"></i></span><h3>Improve</h3>
+            <p>Pick a bullet, choose from 3 AI rewrites, edit it, and download your updated resume.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Before / after -->
+    <section class="section" id="example" aria-labelledby="ba-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">See the difference</p>
+          <h2 id="ba-title" class="display section-title">One bullet, <em>rewritten</em>.</h2>
+          <p class="muted">A real example from the Junior Data Analyst match. The AI uses keywords from the job, and you pick the version you like.</p>
+        </div>
+        <div class="ba-grid">
+          <article class="ba-card ba-before">
+            <span class="badge badge-neutral">Before</span>
+            <p class="ba-text">“Built Tableau dashboards to track weekly sales for the team.”</p>
+            <div class="chips"><span class="chip chip-miss"><i data-icon="x"></i>KPIs</span><span class="chip chip-miss"><i data-icon="x"></i>Stakeholder reporting</span></div>
+            <div class="ba-score"><span class="n">68%</span><span class="badge badge-fair"><i data-icon="bang"></i>Fair match</span></div>
+          </article>
+          <div class="ba-arrow" aria-hidden="true"><i data-icon="sparkles"></i></div>
+          <article class="ba-card ba-after">
+            <span class="badge badge-good"><i data-icon="check"></i>After</span>
+            <p class="ba-text">“Designed Tableau dashboards reporting weekly sales <mark>KPIs</mark> to 3 store managers, supporting <mark>stakeholder reporting</mark> every Monday.”</p>
+            <div class="chips"><span class="chip chip-match"><i data-icon="check"></i>KPIs</span><span class="chip chip-match"><i data-icon="check"></i>Stakeholder reporting</span></div>
+            <div class="ba-score"><span class="n">81%</span><span class="badge badge-good"><i data-icon="check"></i>Strong match</span></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section section-tint" id="features" aria-labelledby="feat-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Features</p>
+          <h2 id="feat-title" class="display section-title">Everything you need to <em>get the interview</em>.</h2>
+        </div>
+        <div class="bento">
+          <article class="bento-card b-wide" style="--c:var(--brand);--t:var(--brand-tint)">
+            <span class="how-ico"><i data-icon="target"></i></span>
+            <h3>ATS‑style match score</h3>
+            <p>See a 0–100 score in seconds, with a clear Low, Fair or Strong label and what it would take to move up.</p>
+            <div class="mini-bars" aria-hidden="true"><span style="--w:41%;--c2:var(--bad)"></span><span style="--w:68%;--c2:var(--fair)"></span><span style="--w:81%;--c2:var(--good)"></span></div>
+          </article>
+          <article class="bento-card" style="--c:var(--coral-ink);--t:var(--coral-tint)">
+            <span class="how-ico"><i data-icon="list"></i></span>
+            <h3>Keyword gaps</h3>
+            <p>Matched, missing and weak keywords, each with its own icon and pattern.</p>
+          </article>
+          <article class="bento-card" style="--c:var(--violet-ink);--t:var(--violet-tint)">
+            <span class="how-ico"><i data-icon="sparkles"></i></span>
+            <h3>3 AI rewrites</h3>
+            <p>Pick one, edit it, or skip it. Nothing changes until you press Save.</p>
+          </article>
+          <article class="bento-card" style="--c:var(--mint-ink);--t:var(--mint-tint)">
+            <span class="how-ico"><i data-icon="flag"></i></span>
+            <h3>Honest‑skill check</h3>
+            <p>If a suggestion adds a skill you don’t have, we flag it.</p>
+          </article>
+          <article class="bento-card" style="--c:var(--brand-2);--t:var(--violet-tint)">
+            <span class="how-ico"><i data-icon="download"></i></span>
+            <h3>PDF or Word export</h3>
+            <p>Preview every change, then download a clean file. Your original stays untouched.</p>
+          </article>
+          <article class="bento-card b-wide" style="--c:var(--ink);--t:var(--marker-soft)">
+            <span class="how-ico"><i data-icon="access"></i></span>
+            <h3>Accessible by design</h3>
+            <p>WCAG AA contrast, colour‑blind friendly keyword colours, text up to 150% and full keyboard support.</p>
+            <div class="chips" style="margin-top:12px"><span class="chip chip-kw">Aa 150%</span><span class="chip chip-kw">High contrast</span><span class="chip chip-kw">Reduce motion</span></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="privacy" aria-labelledby="privacy-title">
+      <div class="container">
+        <h2 id="privacy-title">You stay in control</h2>
+        <p style="margin-top:8px;max-width:40em">Nothing changes on your resume until you press Save, and your original file is never overwritten.</p>
+        <div class="band-grid">
+          <div><i data-icon="lock"></i><h3>Private by default</h3><p>Resumes are encrypted and only visible to you. Delete your data at any time.</p></div>
+          <div><i data-icon="flag"></i><h3>Honest suggestions</h3><p>If the AI mentions a skill that isn’t on your resume, we flag it so you never claim something untrue.</p></div>
+          <div><i data-icon="access"></i><h3>Built for everyone</h3><p>Large text, high contrast and colour‑blind friendly keyword colours are one click away.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container faq-grid">
+        <div>
+          <p class="eyebrow">FAQ</p>
+          <h2 id="faq-title" class="display section-title">Questions, <em>answered</em>.</h2>
+          <p class="muted" style="margin-top:12px">Still curious? Open Help from the <b>?</b> button inside the app.</p>
+        </div>
+        <div class="faq">
+          <details open><summary>Is Resume Assistant free?</summary><p>Yes. It’s free for students and early‑career job seekers.</p></details>
+          <details><summary>Which files can I upload?</summary><p>PDF or Word (DOCX) files up to 10 MB. Scanned images can’t be read, so export your resume from Word or Google Docs.</p></details>
+          <details><summary>Will the AI make things up?</summary><p>It only rewrites what’s on your resume. If an option mentions a skill you haven’t listed, it’s flagged so you can skip it.</p></details>
+          <details><summary>What if a job link doesn’t work?</summary><p>Some sites block automatic reading. The app offers “Paste description instead” with one click, and nothing you entered is lost.</p></details>
+          <details><summary>Who can see my resume?</summary><p>Only you. You can download or delete all of your data from Settings at any time.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final call to action -->
+    <section class="container" aria-labelledby="cta-title">
+      <div class="cta-card">
+        <div class="blobs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="cta-inner">
+          <h2 id="cta-title" class="display">Ready to tailor your <em class="grad-bright">first resume</em>?</h2>
+          <p>Upload once, match with as many jobs as you like.</p>
+          <div class="row" style="justify-content:center;margin-top:24px">
+            <a class="btn btn-light btn-lg" href="login.html#signup">Get started, it’s free <i data-icon="arrow-right"></i></a>
+            <a class="btn btn-glass btn-lg" href="login.html">I already have an account</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a class="logo" href="index.html" id="logo-footer" aria-label="Resume Assistant home"></a>
+          <p class="footer-tag">Scan. Match. Improve. A resume helper built for students and early‑career job seekers.</p>
+        </div>
+        <nav aria-label="Product"><h3>Product</h3><a href="#how">How it works</a><a href="#features">Features</a><a href="#example">Example</a><a href="#faq">FAQ</a></nav>
+        <nav aria-label="Resources"><h3>Resources</h3><a href="styleguide.html">Style guide</a><a href="login.html#signup">Create account</a><a href="login.html">Log in</a></nav>
+        <nav aria-label="Team"><h3>Team</h3><span>Gaurav Bhandari · Database</span><span>Serene Plummer · Backend</span><span>Ingeet Adhikari · Frontend</span><span>Anup Sharma · QA</span></nav>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2026 Resume Assistant. All rights reserved.</span>
+        <span>CSCE 3444 Software Engineering · University of North Texas</span>
+        <span class="row" style="gap:16px"><a href="#privacy">Privacy</a><a href="#faq">Terms</a><a href="#main">Back to top ↑</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    RAPages.welcome = function () {
+      document.getElementById("logo").innerHTML = RA.LOGO_HTML;
+      document.getElementById("logo-footer").innerHTML = RA.LOGO_HTML;
+      RA.scoreRing(document.getElementById("hero-ring"), 68, { sub: false });
+    };
+  </script>
+</body>
+</html>
