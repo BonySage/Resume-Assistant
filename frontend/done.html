@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your resume is ready · Resume Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+</head>
+<body data-page="done" data-auth="required">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div data-shell data-active="analyses"></div>
+
+  <main id="main" class="page">
+    <div class="container">
+      <div class="done-wrap">
+        <div class="done-badge"><i data-icon="check"></i></div>
+        <p class="eyebrow">Confirmation</p>
+        <h1 class="display" style="font-size:clamp(2.25rem,1.6rem + 2.6vw,3.5rem);margin-top:8px" tabindex="-1" id="done-title">Your resume is <span class="hl">ready!</span></h1>
+        <p class="lead" style="margin:14px auto 0"><strong class="mono" id="fname" style="font-size:1rem"></strong> was downloaded to your device.</p>
+
+        <section class="card summary" aria-labelledby="sum-title">
+          <h2 id="sum-title" class="eyebrow" style="font-family:var(--font-mono);font-size:.75rem;margin-bottom:8px">Summary</h2>
+          <dl>
+            <dt>Job</dt><dd>Junior Data Analyst · Northwind Bank</dd>
+            <dt>Bullets improved</dt><dd id="n"></dd>
+            <dt>Match score</dt><dd><span class="row" style="justify-content:flex-end;gap:8px">68% <i data-icon="arrow-right" class="icon-sm"></i> <span id="after"></span></span></dd>
+            <dt>File</dt><dd id="ftype"></dd>
+          </dl>
+        </section>
+
+        <p class="small muted">Didn’t download? <button class="link-btn" type="button" id="again">Try again</button></p>
+
+        <div class="row" style="justify-content:center;margin-top:28px;gap:14px">
+          <a class="btn btn-primary btn-lg" href="job.html"><i data-icon="target"></i>Match with another job</a>
+          <a class="btn btn-secondary btn-lg" href="dashboard.html"><i data-icon="home"></i>Back to dashboard</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    RAPages.done = function () {
+      const $ = s => document.querySelector(s), last = RAData.state.lastExport || {};
+      const file = last.file || "Alex_Rivera_DataAnalyst.pdf";
+      const n = Number(last.n || 3);
+      $("#fname").textContent = file;
+      $("#n").textContent = n;
+      const after = 68 + n * 4 + 1;
+      $("#after").innerHTML = `${after}% ${RA.levelBadge(after)}`;
+      $("#ftype").textContent = (file.endsWith(".docx") ? "Word (DOCX)" : "PDF") + " · 212 KB";
+      $("#again").addEventListener("click", () => RA.toast("Download started again"));
+      $("#done-title").focus();
+
+      // a little celebration, skipped when the user asked for reduced motion
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
+      if (!reduce) {
+        const c = document.createElement("div"); c.className = "confetti"; c.setAttribute("aria-hidden", "true");
+        const colors = ["#ffd23f", "#16171d", "#fffefb", "#f06a4a", "#2a35b0"];
+        for (let i = 0; i < 40; i++) {
+          const s = document.createElement("i");
+          s.style.left = Math.random() * 100 + "%";
+          s.style.background = colors[i % colors.length];
+          s.style.animationDuration = 2.2 + Math.random() * 2 + "s";
+          s.style.animationDelay = Math.random() * .6 + "s";
+          c.appendChild(s);
+        }
+        document.body.appendChild(c);
+        setTimeout(() => c.remove(), 5000);
+      }
+    };
+  </script>
+</body>
+</html>

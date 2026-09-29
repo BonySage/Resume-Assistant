@@ -147,10 +147,10 @@ Pushing to `main` builds the frontend and publishes it to GitHub Pages ([.github
 
 | Name | Role |
 |---|---|
-| | Project Lead |
-| | Backend |
-| | Frontend |
-| | QA |
+| Gaurav Bhandari| DataBase |
+| Serene Plummer| Backend |
+| Ingeet Adhikari| Frontend |
+| Anup Sharma| QA |
 
 ## Contributing
 

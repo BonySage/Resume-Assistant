@@ -38,14 +38,62 @@ Screens (SRS section 6):
   building each screen
 - Never put API keys in frontend code
 
+## UI design prototype (current)
+
+This folder holds the clickable UI design for the UI Design assignment: plain
+HTML, CSS and JavaScript with made-up sample data, and no backend yet. The React
+app can reuse its screens, colors and components later.
+
+| Page | File |
+| --- | --- |
+| Welcome | `index.html` |
+| Log in / Sign up (Google, Apple, GitHub) | `login.html` |
+| Dashboard | `dashboard.html` |
+| Job posting | `job.html` |
+| Match results | `results.html` |
+| Improve bullets | `improve.html` |
+| Export | `export.html` |
+| Confirmation | `done.html` |
+| Settings | `settings.html` |
+| Style guide | `styleguide.html` |
+
+Code layout: `css/styles.css` holds the whole design system (colors are at the
+top), `js/app.js` has shared parts (icons, top bar, step bar, toasts, dialogs),
+`js/data.js` has the sample data, and `js/pages/*.js` holds each page's behavior.
+
+The exported PDF for submission is in `docs/UI-Design.pdf`.
+
 ## Setup
 
+<<<<<<< HEAD
 ```bash
 npm install
 npm run dev   # http://localhost:5173 — vite.config.js proxies /api to the backend on :3000
 ```
 
 No automated tests yet. `npm run lint` runs oxlint.
+=======
+1. Clone the repo and switch to this branch:
+   ```bash
+   git clone https://github.com/BonySage/Resume-Assistant.git
+   cd Resume-Assistant
+   git checkout claude/project-thread-414zpn
+   ```
+2. Open the `Resume-Assistant` folder in VS Code (File → Open Folder).
+3. Install the **Live Server** extension when VS Code suggests it.
+4. Open `frontend/index.html` and click **Go Live** (bottom right). The site opens
+   at http://localhost:5500 and reloads every time you save.
+
+No VS Code? Double-click `frontend/index.html`, or run `npm start` from the repo
+root (needs Node.js).
+
+To rebuild the PDF after changing a screen, run `npm run pdf` from the repo
+root (needs Google Chrome). It saves `exports/Resume-Assistant-UI-Design.pdf`.
+
+Demo tips: log in with any email and an 8+ character password. A LinkedIn job
+link shows the "couldn't read that page" fallback. To reset the demo data, run
+`localStorage.clear()` in the browser console.
+>>>>>>> 54cb7cf21bd0593de0d017883f8f0d578527bdc7
 
 ## Git workflow
 

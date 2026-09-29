@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · Resume Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..800,0..100;1,9..144,400..800,0..100&family=IBM+Plex+Mono:wght@500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/prefs.js"></script>
+</head>
+<body data-page="settings" data-auth="required">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div data-shell data-active="settings"></div>
+
+  <main id="main" class="page">
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <p class="eyebrow">Account</p>
+          <h1 style="margin-top:6px">Settings</h1>
+        </div>
+      </div>
+
+      <div class="settings">
+        <nav class="side-nav" aria-label="Settings sections">
+          <a href="#profile" data-sec="profile"><i data-icon="user"></i>Profile</a>
+          <a href="#password" data-sec="password"><i data-icon="lock"></i>Password &amp; login</a>
+          <a href="#accessibility" data-sec="accessibility"><i data-icon="access"></i>Accessibility</a>
+          <a href="#notifications" data-sec="notifications"><i data-icon="bell"></i>Notifications</a>
+          <a href="#privacy" data-sec="privacy"><i data-icon="database"></i>Data &amp; privacy</a>
+          <hr>
+          <button type="button" data-action="logout"><i data-icon="logout"></i>Log out</button>
+        </nav>
+
+        <div>
+          <!-- PROFILE -->
+          <section class="card" id="sec-profile" data-panel="profile" aria-labelledby="h-profile" hidden>
+            <h2 id="h-profile">Profile</h2>
+            <p class="muted" style="margin-top:6px">This is how your name appears on exported resumes.</p>
+            <div class="grid-2" style="margin-top:20px">
+              <div class="field"><label class="label" for="p-name">Full name</label><input class="input" id="p-name" data-track></div>
+              <div class="field" style="margin-top:0"><label class="label" for="p-email">Email</label><input class="input" id="p-email" type="email" data-track></div>
+            </div>
+          </section>
+
+          <!-- PASSWORD -->
+          <section class="card" id="sec-password" data-panel="password" aria-labelledby="h-password" hidden>
+            <h2 id="h-password">Password &amp; login</h2>
+            <p class="muted" style="margin-top:6px">Use the same rules as sign up: 8+ characters, mixed case and a number.</p>
+            <div style="max-width:420px;margin-top:20px">
+              <div class="field"><label class="label" for="pw-old">Current password</label><input class="input" id="pw-old" type="password" autocomplete="current-password" data-track></div>
+              <div class="field"><label class="label" for="pw-new">New password</label><input class="input" id="pw-new" type="password" autocomplete="new-password" data-track></div>
+            </div>
+            <hr class="divider-line">
+            <div class="setting" style="border-top:0">
+              <div><h3>Automatic log out</h3><p>For your safety you’re logged out after <strong>15 minutes</strong> of no activity. We warn you 1 minute before.</p></div>
+              <div class="row"><span class="badge badge-neutral"><i data-icon="lock"></i>Always on</span><button class="btn btn-secondary btn-sm" type="button" id="preview-timeout">Preview warning</button></div>
+            </div>
+          </section>
+
+          <!-- ACCESSIBILITY -->
+          <section class="card card-ink glow" id="sec-accessibility" data-panel="accessibility" aria-labelledby="h-access" hidden>
+            <div class="row-between">
+              <h2 id="h-access">Accessibility</h2>
+              <span class="badge badge-brand"><i data-icon="eye"></i>Changes preview instantly</span>
+            </div>
+
+            <div class="setting" style="margin-top:8px">
+              <div>
+                <h3 id="lbl-size">Text size</h3>
+                <p>Each option is shown at its own size.</p>
+              </div>
+              <div class="size-opts" role="radiogroup" aria-labelledby="lbl-size">
+                <label class="size-opt"><input type="radio" name="text" value="default" data-track><span><b style="font-size:1rem">Aa</b>Default</span></label>
+                <label class="size-opt"><input type="radio" name="text" value="large" data-track><span><b style="font-size:1.25rem">Aa</b>Large</span></label>
+                <label class="size-opt"><input type="radio" name="text" value="xl" data-track><span><b style="font-size:1.5rem">Aa</b>Extra large</span></label>
+              </div>
+            </div>
+
+            <div class="setting">
+              <div><h3><label for="t-contrast">High‑contrast mode</label></h3><p>Darker borders and text, stronger focus outlines.</p></div>
+              <label class="switch"><input type="checkbox" id="t-contrast" data-track><span class="switch-state" aria-hidden="true">Off</span></label>
+            </div>
+
+            <div class="setting">
+              <div><h3><label for="t-motion">Reduce motion</label></h3><p>Turn off animations and loading shimmer.</p></div>
+              <label class="switch"><input type="checkbox" id="t-motion" data-track><span class="switch-state" aria-hidden="true">Off</span></label>
+            </div>
+
+            <div class="setting">
+              <div>
+                <h3 id="lbl-pal">Keyword colors</h3>
+                <p>Icons and patterns always stay on. Choose the color set.</p>
+                <div class="palette-preview" aria-hidden="true">
+                  <span class="chip chip-match"><i data-icon="check"></i>Matched</span>
+                  <span class="chip chip-weak"><i data-icon="bang"></i>Weak</span>
+                  <span class="chip chip-miss"><i data-icon="x"></i>Missing</span>
+                </div>
+              </div>
+              <div class="segmented" role="radiogroup" aria-labelledby="lbl-pal">
+                <label><input type="radio" name="palette" value="standard" data-track><span>Standard</span></label>
+                <label><input type="radio" name="palette" value="cb" data-track><span><i data-icon="palette" class="icon-sm"></i>Color‑blind friendly</span></label>
+              </div>
+            </div>
+          </section>
+
+          <!-- NOTIFICATIONS -->
+          <section class="card" id="sec-notifications" data-panel="notifications" aria-labelledby="h-notif" hidden>
+            <h2 id="h-notif">Notifications</h2>
+            <div class="setting" style="margin-top:8px">
+              <div><h3><label for="n-email">Email me when an analysis is ready</label></h3><p>Useful for long job postings.</p></div>
+              <label class="switch"><input type="checkbox" id="n-email" checked data-track><span class="switch-state" aria-hidden="true">On</span></label>
+            </div>
+            <div class="setting">
+              <div><h3><label for="n-tips">Weekly resume tips</label></h3><p>One short email a week. Unsubscribe any time.</p></div>
+              <label class="switch"><input type="checkbox" id="n-tips" data-track><span class="switch-state" aria-hidden="true">Off</span></label>
+            </div>
+          </section>
+
+          <!-- PRIVACY -->
+          <div id="sec-privacy" data-panel="privacy" hidden class="stack" style="--gap:20px">
+            <section class="card" aria-labelledby="h-priv">
+              <h2 id="h-priv">Data &amp; privacy</h2>
+              <p class="muted" style="margin-top:6px">Your resumes are encrypted and only visible to you.</p>
+              <div class="setting" style="margin-top:8px">
+                <div><h3>Download my data</h3><p>All resumes, analyses and saved bullets as a .zip file.</p></div>
+                <button class="btn btn-secondary" type="button" id="export-data"><i data-icon="download"></i>Request download</button>
+              </div>
+            </section>
+            <section class="card danger-zone" aria-labelledby="h-danger">
+              <h2 id="h-danger" class="row" style="gap:10px"><i data-icon="alert"></i>Danger zone</h2>
+              <div class="setting" style="border-top:0">
+                <div><h3>Delete account</h3><p>Permanently removes your account, resumes and analyses.</p></div>
+                <button class="btn btn-danger-outline" type="button" id="del-account"><i data-icon="trash"></i>Delete account…</button>
+              </div>
+            </section>
+          </div>
+
+          <div class="actionbar unsaved" id="unsaved" role="region" aria-label="Unsaved changes">
+            <p class="note"><i data-icon="info"></i><strong style="color:var(--ink)">You have unsaved changes</strong></p>
+            <button class="btn btn-secondary" type="button" id="discard">Discard</button>
+            <button class="btn btn-primary" type="button" id="save">Save changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/pages/settings.js"></script>
+</body>
+</html>

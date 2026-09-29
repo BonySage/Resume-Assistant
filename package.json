@@ -1,0 +1,10 @@
+{
+  "name": "resume-assistant-ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Resume Assistant UI prototype (HTML, CSS, JavaScript). UI Design Assignment.",
+  "scripts": {
+    "start": "npx --yes http-server frontend -p 5500 -c-1 -o",
+    "pdf": "node scripts/export-pdf.mjs"
+  }
+}
