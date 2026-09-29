@@ -65,6 +65,14 @@ The exported PDF for submission is in `docs/UI-Design.pdf`.
 
 ## Setup
 
+<<<<<<< HEAD
+```bash
+npm install
+npm run dev   # http://localhost:5173 — vite.config.js proxies /api to the backend on :3000
+```
+
+No automated tests yet. `npm run lint` runs oxlint.
+=======
 1. Clone the repo and switch to this branch:
    ```bash
    git clone https://github.com/BonySage/Resume-Assistant.git
@@ -85,6 +93,7 @@ root (needs Google Chrome). It saves `exports/Resume-Assistant-UI-Design.pdf`.
 Demo tips: log in with any email and an 8+ character password. A LinkedIn job
 link shows the "couldn't read that page" fallback. To reset the demo data, run
 `localStorage.clear()` in the browser console.
+>>>>>>> 54cb7cf21bd0593de0d017883f8f0d578527bdc7
 
 ## Git workflow
 

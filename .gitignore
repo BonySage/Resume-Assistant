@@ -7,8 +7,11 @@ uploads/
 *.log
 .DS_Store
 
+<<<<<<< HEAD
+=======
 rgb(34, 185, 185) the files name over here that are sensitive and cannot be shared to the public.
 
 # UI prototype: generated screenshots and PDFs (the final PDF is in docs/)
 exports/
 .claude/
+>>>>>>> 54cb7cf21bd0593de0d017883f8f0d578527bdc7
