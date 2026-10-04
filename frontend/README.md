@@ -1,53 +1,33 @@
 # Frontend
 
-React web application for the AI Resume Assistant. Responsible for the user
-interface, form inputs, results display, and the resume editor.
+React web application for the AI Resume Assistant. It owns the main frontend entry point and connects to the backend API through Vite.
 
-## What to build (from the SRS)
+## Screens and requirements
 
-Screens (SRS section 6):
-1. Login / Registration: email and password fields, strength indicator,
-   real-time validation, "Forgot Password" link
-2. Resume Upload Dashboard: drag-and-drop upload, progress indicator, list of
-   resumes with dates, delete button, PDF/DOCX-only warning
-3. Job Posting Input: two tabs ("Paste URL" and "Paste Description"), loading
-   state, error message with fallback prompt if URL extraction fails
-4. Analysis Results Dashboard: match score (0-100) with red/yellow/green
-   indicator, matched / missing (critical and secondary) / weak keyword lists,
-   recommendations, selectable resume bullets
-5. Bullet Improvement Interface: original bullet highlighted, 3 AI options,
-   edit and select buttons, save button, loading state
-6. Export / Download Page: PDF download (DOCX optional), optional preview
+The SRS calls for:
 
-## Requirements that affect the frontend
+- Login and registration with validation and session-expiration handling
+- Resume upload, progress, resume list, and deletion
+- Job posting input by URL or pasted description, with a fallback when URL extraction fails
+- Analysis results with a match score, keyword groups, recommendations, and selectable bullets
+- Three AI bullet rewrites with edit, select, and save states
+- PDF export and preview
 
-- NFR-1.5: dashboard loads within 2 seconds
-- NFR-2.4: sanitize input to prevent XSS
-- NFR-3.1 to 3.4: intuitive UI, plain-English error messages, responsive on
-  mobile and desktop, help tooltips for each feature
-- NFR-4.2 / 4.3: show the copy-paste fallback if URL extraction fails; tell the
-  user if the AI service is down and allow manual editing
-- Supported browsers: latest Chrome, Firefox, Safari, Edge
-- Session times out after 15 minutes of inactivity (FR-1.2); handle
-  expired tokens gracefully
+The interface should be responsive, sanitize user input, provide clear errors, and support current Chrome, Firefox, Safari, and Edge. See the SRS for the complete requirements.
 
-## Working with the backend
+## Backend integration
 
-- API base URL comes from an environment variable (see `.env.example`)
-- Agree on API endpoints and response shapes with the backend owner before
-  building each screen
-- Never put API keys in frontend code
+- The API base URL can be configured with `VITE_API_BASE_URL`.
+- Local Vite development proxies `/api` to `http://localhost:3000`.
+- Never put API keys in frontend code.
 
-## UI design prototype (current)
+## UI design prototype
 
-This folder holds the clickable UI design for the UI Design assignment: plain
-HTML, CSS and JavaScript with made-up sample data, and no backend yet. The React
-app can reuse its screens, colors and components later.
+Standalone HTML, CSS, and JavaScript prototype screens with sample data are included alongside the React app. They have no backend integration and are not the app entry point; `index.html` loads the React application.
 
 | Page | File |
 | --- | --- |
-| Welcome | `index.html` |
-| Log in / Sign up (Google, Apple, GitHub) | `login.html` |
+| Log in / Sign up | `login.html` |
 | Dashboard | `dashboard.html` |
 | Job posting | `job.html` |
 | Match results | `results.html` |
@@ -57,45 +37,23 @@ app can reuse its screens, colors and components later.
 | Settings | `settings.html` |
 | Style guide | `styleguide.html` |
 
-Code layout: `css/styles.css` holds the whole design system (colors are at the
-top), `js/app.js` has shared parts (icons, top bar, step bar, toasts, dialogs),
-`js/data.js` has the sample data, and `js/pages/*.js` holds each page's behavior.
-
-The exported PDF for submission is in `docs/UI-Design.pdf`.
+Prototype styles are in `css/styles.css`; shared behavior is in `js/app.js`; sample data is in `js/data.js`; page behavior is in `js/pages/`. The exported design PDF is in `docs/UI-Design.pdf`.
 
 ## Setup
 
-<<<<<<< HEAD
+From this directory:
+
 ```bash
 npm install
-npm run dev   # http://localhost:5173 — vite.config.js proxies /api to the backend on :3000
+npm run dev   # http://localhost:5173
 ```
 
-No automated tests yet. `npm run lint` runs oxlint.
-=======
-1. Clone the repo and switch to this branch:
-   ```bash
-   git clone https://github.com/BonySage/Resume-Assistant.git
-   cd Resume-Assistant
-   git checkout claude/project-thread-414zpn
-   ```
-2. Open the `Resume-Assistant` folder in VS Code (File → Open Folder).
-3. Install the **Live Server** extension when VS Code suggests it.
-4. Open `frontend/index.html` and click **Go Live** (bottom right). The site opens
-   at http://localhost:5500 and reloads every time you save.
+The Vite development server proxies `/api` to the backend on port 3000. Run `npm run lint` for oxlint.
 
-No VS Code? Double-click `frontend/index.html`, or run `npm start` from the repo
-root (needs Node.js).
+To preview a prototype screen, open its HTML file with a local static server such as VS Code Live Server. Prototype login accepts any email and a password of at least 8 characters. Reset its sample data with `localStorage.clear()` in the browser console.
 
-To rebuild the PDF after changing a screen, run `npm run pdf` from the repo
-root (needs Google Chrome). It saves `exports/Resume-Assistant-UI-Design.pdf`.
-
-Demo tips: log in with any email and an 8+ character password. A LinkedIn job
-link shows the "couldn't read that page" fallback. To reset the demo data, run
-`localStorage.clear()` in the browser console.
->>>>>>> 54cb7cf21bd0593de0d017883f8f0d578527bdc7
+To rebuild the design PDF, run `npm run pdf` from the repository root; Google Chrome is required.
 
 ## Git workflow
 
-Do not push to `main`. Create a branch (`frontend/<short-name>`), push it, and
-open a pull request for review.
+Do not push to `main`. Create a branch, push it, and open a pull request for review.
