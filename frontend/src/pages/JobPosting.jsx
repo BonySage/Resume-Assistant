@@ -70,6 +70,12 @@ export default function JobPosting() {
       document.getElementById('job-url').focus();
       return;
     }
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('169.254.')) {
+      setUrlMsg('Internal network links are blocked for security reasons.');
+      document.getElementById('job-url').focus();
+      return;
+    }
     setUrlMsg('');
     setJob(null);
     const ctrl = new AbortController();
