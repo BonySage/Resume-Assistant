@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: resume_assistant
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d resume_assistant']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Secrets (JWT_SECRET, ANTHROPIC_API_KEY, ANTHROPIC_MODEL) come from backend/.env.
+    # It's optional so the stack still starts without it (AI features stay off).
+    env_file:
+      - path: backend/.env
+        required: false
+    # These override backend/.env so the container talks to the db container.
+    environment:
+      # 'production' marks the login cookie Secure (HTTPS only). Local Docker runs
+      # over plain http://localhost, so keep it 'development' until there's HTTPS.
+      NODE_ENV: development
+      DATABASE_URL: postgres://postgres:password@db:5432/resume_assistant
+      CLIENT_ORIGIN: http://localhost:5173
+      PORT: '3000'
+    ports:
+      - '3000:3000'
+
+volumes:
+  db_data:
