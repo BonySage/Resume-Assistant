@@ -1,6 +1,8 @@
 node_modules/
+# Environment variables (block all variations to prevent secret leaks)
 .env
-.env.local
+.env.*
+*.env
 dist/
 build/
 uploads/
