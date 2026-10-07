@@ -92,7 +92,11 @@ export default function JobPosting() {
     setAnalyzeError('');
     try {
       let posting = job;
-      if (tab === 1) posting = (await api.createJobPostingFromText(text)).jobPosting;
+      if (tab === 1 && (!posting || posting._fromText !== text)) {
+        posting = (await api.createJobPostingFromText(text)).jobPosting;
+        posting._fromText = text;
+        setJob(posting);
+      }
       const { analysis } = await api.createAnalysis(resume.id, posting.id);
       navigate(`/results/${analysis.id}`);
     } catch (err) {
