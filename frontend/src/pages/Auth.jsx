@@ -161,7 +161,7 @@ function LoginPanel({ notice, goSignup }) {
           <span className="msg msg-warn" id="caps-login" hidden={!caps}><Icon name="alert" />Caps Lock is on</span>
         </div>
 
-        <button className="btn btn-primary btn-lg btn-block" type="submit" style={{ marginTop: 24 }} aria-busy={busy}>
+        <button className="btn btn-primary btn-lg btn-block" type="submit" style={{ marginTop: 24 }} disabled={busy} aria-busy={busy}>
           {busy ? <><Icon name="refresh" />Logging in…</> : <>Log in <Icon name="arrow-right" /></>}
         </button>
       </form>
