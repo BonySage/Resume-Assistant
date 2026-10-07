@@ -1,4 +1,6 @@
-name: Deploy Vite app to GitHub Pages
+# Deploys the frontend to GitHub Pages.
+# Only runs after CI passes (tests + lint) to prevent deploying broken code.
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -15,7 +17,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Quality gates — same checks as ci.yml so we never deploy broken code
+  test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+
+  lint:
+    name: Frontend lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+
+  # Build + deploy only after tests and lint pass
   build:
+    name: Build frontend
+    needs: [test, lint]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -24,26 +60,27 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-          cache-dependency-path: Resume-Assistant/frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        working-directory: Resume-Assistant/frontend
+        working-directory: frontend
         run: npm ci
 
       - name: Build app
-        working-directory: Resume-Assistant/frontend
+        working-directory: frontend
         run: npm run build
         env:
-          VITE_API_BASE_URL: https://your-backend-url.example.com/api
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: Resume-Assistant/frontend/dist
+          path: frontend/dist
 
   deploy:
+    name: Deploy
     needs: build
     runs-on: ubuntu-latest
     environment:
