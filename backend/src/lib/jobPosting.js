@@ -16,6 +16,13 @@ export async function fetchJobPostingText(url) {
     throw new Error('Only http/https URLs are supported.');
   }
 
+  const hostname = parsed.hostname.toLowerCase();
+  const isInternal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || 
+    hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('169.254.');
+  if (isInternal) {
+    throw new Error('Internal network links are blocked for security reasons.');
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), URL_FETCH_TIMEOUT_MS);
   let res;
@@ -42,7 +49,16 @@ export async function fetchJobPostingText(url) {
     throw new Error("That URL doesn't look like a web page. Try pasting the description instead.");
   }
 
-  const html = await res.text();
+  let size = 0;
+  const chunks = [];
+  for await (const chunk of res.body) {
+    size += chunk.length;
+    if (size > 2 * 1024 * 1024) { // 2 MB limit
+      throw new Error("That page is too large to process. Try pasting the description instead.");
+    }
+    chunks.push(chunk);
+  }
+  const html = Buffer.concat(chunks).toString('utf-8');
   const $ = cheerio.load(html);
   $('script, style, noscript, nav, header, footer, svg').remove();
   const text = $('body').text().replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();

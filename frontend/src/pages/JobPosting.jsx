@@ -70,6 +70,12 @@ export default function JobPosting() {
       document.getElementById('job-url').focus();
       return;
     }
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('169.254.')) {
+      setUrlMsg('Internal network links are blocked for security reasons.');
+      document.getElementById('job-url').focus();
+      return;
+    }
     setUrlMsg('');
     setJob(null);
     const ctrl = new AbortController();
@@ -92,7 +98,11 @@ export default function JobPosting() {
     setAnalyzeError('');
     try {
       let posting = job;
-      if (tab === 1) posting = (await api.createJobPostingFromText(text)).jobPosting;
+      if (tab === 1 && (!posting || posting._fromText !== text)) {
+        posting = (await api.createJobPostingFromText(text)).jobPosting;
+        posting._fromText = text;
+        setJob(posting);
+      }
       const { analysis } = await api.createAnalysis(resume.id, posting.id);
       navigate(`/results/${analysis.id}`);
     } catch (err) {
