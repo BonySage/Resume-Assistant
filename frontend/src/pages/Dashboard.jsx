@@ -64,7 +64,7 @@ export default function Dashboard() {
   const ready = (resumes || []).filter((r) => !r.parseError);
   const latest = analyses[0];
   const latestJob = latest && jobs[latest.jobPostingId];
-  const best = analyses.length ? Math.max(...analyses.map((a) => a.score ?? 0)) : null;
+  const best = analyses.length ? (analyses.some((a) => a.score != null) ? Math.max(...analyses.filter((a) => a.score != null).map((a) => a.score)) : null) : null;
   const first = displayName.split(' ')[0];
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -146,7 +146,7 @@ export default function Dashboard() {
               <div className="banner-art" aria-hidden="true">
                 <div className="glass-card">
                   <span className="eyebrow">Last match{latestJob?.company ? ` · ${latestJob.company}` : ''}</span>
-                  <ScoreRing value={latest.score ?? 0} className="ring-sm" />
+                  <ScoreRing value={latest.score} className="ring-sm" />
                 </div>
               </div>
             )}
@@ -320,7 +320,7 @@ export default function Dashboard() {
                               <span className="small muted">{[j?.company, fmtDate(a.createdAt)].filter(Boolean).join(' · ')}</span>
                             </span>
                             <span className="mini-score">
-                              <span className="n">{a.score}<span className="small">%</span></span>
+                              <span className="n">{a.score == null ? '—' : <>{a.score}<span className="small">%</span></>}</span>
                               <LevelBadge value={a.score} />
                             </span>
                           </Link>

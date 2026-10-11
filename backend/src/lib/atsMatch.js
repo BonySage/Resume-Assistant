@@ -82,7 +82,7 @@ export function computeMatch(resume, job) {
   }
 
   return {
-    score: score === null ? 50 : Math.max(0, Math.min(100, score)),
+    score: score === null ? null : Math.max(0, Math.min(100, score)),
     matchedKeywords: matched,
     missingCritical,
     missingSecondary,

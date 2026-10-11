@@ -44,13 +44,24 @@ async function ownedAnalysis(id, userId) {
 }
 
 router.get('/', async (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const offset = (page - 1) * limit;
+
   const { rows } = await query(
     `SELECT analyses.* FROM analyses
      JOIN resumes ON resumes.id = analyses.resume_id
-     WHERE resumes.user_id = $1 ORDER BY analyses.id DESC`,
+     WHERE resumes.user_id = $1 ORDER BY analyses.id DESC LIMIT $2 OFFSET $3`,
+    [req.user.id, limit, offset]
+  );
+  const { rows: countRows } = await query(
+    `SELECT COUNT(*) AS total FROM analyses
+     JOIN resumes ON resumes.id = analyses.resume_id
+     WHERE resumes.user_id = $1`,
     [req.user.id]
   );
-  res.json({ analyses: rows.map(serializeAnalysis) });
+  const total = parseInt(countRows[0].total, 10);
+  res.json({ analyses: rows.map(serializeAnalysis), pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
 });
 
 router.get('/:id', async (req, res) => {

@@ -55,11 +55,20 @@ function serializeResume(row, { includeParsed = false } = {}) {
 
 // FR-2.1 + list for the Resume Upload Dashboard
 router.get('/', async (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const offset = (page - 1) * limit;
+
   const { rows } = await query(
-    'SELECT * FROM resumes WHERE user_id = $1 ORDER BY id DESC',
+    'SELECT * FROM resumes WHERE user_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3',
+    [req.user.id, limit, offset]
+  );
+  const { rows: countRows } = await query(
+    'SELECT COUNT(*) AS total FROM resumes WHERE user_id = $1',
     [req.user.id]
   );
-  res.json({ resumes: rows.map((r) => serializeResume(r)) });
+  const total = parseInt(countRows[0].total, 10);
+  res.json({ resumes: rows.map((r) => serializeResume(r)), pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
 });
 
 router.get('/:id', async (req, res) => {

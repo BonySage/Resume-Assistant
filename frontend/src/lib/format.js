@@ -15,6 +15,7 @@ export function kb(bytes) {
 }
 
 export function scoreLevel(n) {
+  if (n == null) return { key: 'none', word: 'N/A', icon: 'info' };
   if (n >= 75) return { key: 'good', word: 'Strong', icon: 'check' };
   if (n >= 50) return { key: 'fair', word: 'Fair', icon: 'bang' };
   return { key: 'bad', word: 'Low', icon: 'x' };
