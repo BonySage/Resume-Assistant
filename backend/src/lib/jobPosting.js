@@ -27,7 +27,20 @@ function publicLookup(hostname, options, callback) {
     callback = options;
     options = {};
   }
-  dns.lookup(hostname, { all: true, verbatim: true }, (err, addresses) => {
+  const cleanHost = hostname.startsWith('[') && hostname.endsWith(']')
+    ? hostname.slice(1, -1)
+    : hostname;
+  if (ipaddr.isValid(cleanHost)) {
+    if (!isPublicAddress(cleanHost)) {
+      const blocked = new Error('Requests to private or reserved network addresses are blocked.');
+      blocked.code = 'EACCES';
+      return callback(blocked);
+    }
+    const family = cleanHost.includes(':') ? 6 : 4;
+    if (options?.all) return callback(null, [{ address: cleanHost, family }]);
+    return callback(null, cleanHost, family);
+  }
+  dns.lookup(cleanHost, { all: true, verbatim: true }, (err, addresses) => {
     if (err) return callback(err);
     if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
       const blocked = new Error('Requests to private or reserved network addresses are blocked.');
@@ -45,11 +58,18 @@ async function validatePublicUrl(url) {
   if (!/^https?:$/.test(url.protocol)) {
     throw fetchError('Only http/https URLs are supported.');
   }
+  const hostname = url.hostname.startsWith('[') && url.hostname.endsWith(']')
+    ? url.hostname.slice(1, -1)
+    : url.hostname;
   let addresses;
-  try {
-    addresses = await dns.promises.lookup(url.hostname, { all: true, verbatim: true });
-  } catch {
-    throw fetchError("Couldn't reach that URL. Try pasting the description instead.");
+  if (ipaddr.isValid(hostname)) {
+    addresses = [{ address: hostname }];
+  } else {
+    try {
+      addresses = await dns.promises.lookup(hostname, { all: true, verbatim: true });
+    } catch {
+      throw fetchError("Couldn't reach that URL. Try pasting the description instead.");
+    }
   }
   if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
     throw fetchError('Internal network links are blocked for security reasons.');
