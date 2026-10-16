@@ -50,11 +50,20 @@ To run the API directly instead, you need Node 22+ and a running Postgres:
 
 ```bash
 npm install
-cp .env.example .env   # set DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY
-npm run migrate         # applies ../db/migrations/*.sql
-npm run dev              # http://localhost:3000, restarts on file changes
-npm test                 # foundation tests (no database needed)
+cp .env.example .env   # set both database URLs/passwords and a random JWT_SECRET
+npm run migrate         # uses the privileged migration URL and provisions resume_app
+npm run dev              # API uses the restricted DATABASE_URL role
+npm test                 # node:test suite (no database needed)
 ```
+
+This direct-run path uses `backend/.env`. For the Docker workflow, use the root
+`compose.env.example` → `.env` instead; Compose creates the database and runs
+migrations automatically.
+
+`MIGRATION_DATABASE_URL` is used only by the migration command. `DATABASE_URL`
+must connect as the non-superuser `resume_app` role created by migrations.
+Choose URL-safe (for example, hexadecimal) database passwords so they can be
+embedded in PostgreSQL connection URLs without escaping.
 
 ## Project structure
 

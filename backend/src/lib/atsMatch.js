@@ -77,7 +77,9 @@ export function computeMatch(resume, job) {
   if (score !== null && score < 60) {
     recommendations.push('Your overall match is low. Consider whether this role is a strong fit, or tailor your bullets toward the missing critical keywords above.');
   }
-  if (!recommendations.length) {
+  if (score === null) {
+    recommendations.push('No job skills were listed, so a keyword match score could not be calculated. Review the posting details manually.');
+  } else if (!recommendations.length) {
     recommendations.push('Strong match — no major keyword gaps found.');
   }
 

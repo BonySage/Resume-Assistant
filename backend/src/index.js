@@ -10,6 +10,12 @@ if (errors.length) {
   process.exit(1);
 }
 
+// Migration/admin credentials are not needed by the request-serving process.
+delete config.migrationDatabaseUrl;
+delete config.appDbPassword;
+delete process.env.MIGRATION_DATABASE_URL;
+delete process.env.APP_DB_PASSWORD;
+
 const server = createApp().listen(config.port, () => {
   console.log(`AI Resume Assistant API listening on http://localhost:${config.port} (${config.env})`);
 });

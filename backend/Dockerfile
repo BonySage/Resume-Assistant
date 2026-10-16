@@ -21,4 +21,4 @@ USER node
 EXPOSE 3000
 # Apply any pending migrations, then start the API. `exec` makes node PID 1 so
 # `docker stop` (SIGTERM) reaches it and it can shut down gracefully.
-CMD ["sh", "-c", "node src/migrate.js && exec node src/index.js"]
+CMD ["sh", "-c", "node src/migrate.js && unset MIGRATION_DATABASE_URL && exec node src/index.js"]

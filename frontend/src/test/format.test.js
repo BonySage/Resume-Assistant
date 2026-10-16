@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { listAllPages } from '../api.js';
 import {
   fmtDate,
   fileKind,
@@ -215,5 +216,29 @@ describe('safeFileName', () => {
   it('truncates to 60 characters', () => {
     const long = 'a'.repeat(80);
     expect(safeFileName(long).length).toBeLessThanOrEqual(60);
+  });
+});
+
+describe('listAllPages', () => {
+  it('fetches every page and preserves record order', async () => {
+    const fetchPage = vi.fn(async ({ page }) => ({
+      resumes: [`resume-${page}`],
+      pagination: { pages: 3 },
+    }));
+
+    await expect(listAllPages(fetchPage, 'resumes')).resolves.toEqual([
+      'resume-1',
+      'resume-2',
+      'resume-3',
+    ]);
+    expect(fetchPage).toHaveBeenNthCalledWith(1, { page: 1, limit: 100 });
+    expect(fetchPage).toHaveBeenNthCalledWith(2, { page: 2, limit: 100 });
+    expect(fetchPage).toHaveBeenNthCalledWith(3, { page: 3, limit: 100 });
+  });
+
+  it('supports APIs that do not include pagination metadata', async () => {
+    const fetchPage = vi.fn(async () => ({ resumes: ['resume-1'] }));
+    await expect(listAllPages(fetchPage, 'resumes')).resolves.toEqual(['resume-1']);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
   });
 });

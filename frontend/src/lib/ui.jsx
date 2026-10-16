@@ -153,7 +153,7 @@ export function ScoreRing({ value, sub = true, className = '', style }) {
     };
   }, [value, c]);
   return (
-    <div className={`ring ${className}`} style={{ '--ring': value == null ? 'var(--c-border)' : `var(--${lvl.key})`, ...style }} role="img" aria-label={value == null ? 'Match score not available — job has no listed skills' : `Match score ${value} out of 100, ${lvl.word}`}>
+    <div className={`ring ${className}`} style={{ '--ring': value == null ? 'var(--line)' : `var(--${lvl.key})`, ...style }} role="img" aria-label={value == null ? 'Match score not available — job has no listed skills' : `Match score ${value} out of 100, ${lvl.word}`}>
       <svg viewBox="0 0 168 168" aria-hidden="true">
         <circle className="track" cx="84" cy="84" r={r} fill="none" strokeWidth="16" />
         <circle className="bar" cx="84" cy="84" r={r} fill="none" strokeWidth="16" strokeDasharray={c} style={{ strokeDashoffset: offset }} />

@@ -48,9 +48,18 @@ describe('API app', () => {
     assert.equal(body.code, 'ROUTE_NOT_FOUND');
   });
 
+  test('CORS only grants the configured browser origin', async () => {
+    const allowed = await api.call('/api/health', { headers: { Origin: 'http://localhost:5173' } });
+    assert.equal(allowed.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+    const hostile = await api.call('/api/health', { headers: { Origin: 'https://attacker.example' } });
+    assert.equal(hostile.headers.get('access-control-allow-origin'), null);
+    const noOrigin = await api.call('/api/health');
+    assert.equal(noOrigin.headers.get('access-control-allow-origin'), null);
+  });
+
   test('malformed JSON returns a friendly 400, not a parser message', async () => {
     const { status, body } = await api.call('/api/auth/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{nope',
+      method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:5173' }, body: '{nope',
     });
     assert.equal(status, 400);
     assert.equal(body.code, 'INVALID_JSON');
@@ -61,6 +70,17 @@ describe('API app', () => {
     const { status, body } = await api.call('/api/resumes');
     assert.equal(status, 401);
     assert.equal(body.code, 'NO_SESSION');
+  });
+
+  test('state-changing requests reject missing and untrusted origins', async () => {
+    const missing = await api.call('/api/auth/logout', { method: 'POST' });
+    assert.equal(missing.status, 403);
+    assert.equal(missing.body.code, 'UNTRUSTED_ORIGIN');
+    const untrusted = await api.call('/api/auth/logout', {
+      method: 'POST', headers: { Origin: 'https://attacker.example' },
+    });
+    assert.equal(untrusted.status, 403);
+    assert.equal(untrusted.body.code, 'UNTRUSTED_ORIGIN');
   });
 
   test('an expired session is reported as SESSION_EXPIRED', async () => {
@@ -81,11 +101,26 @@ describe('API app', () => {
 
   test('input validation still runs before any database work', async () => {
     const { status, body } = await api.call('/api/auth/signup', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:5173' },
       body: JSON.stringify({ email: 'not-an-email', password: 'Abcdefg1' }),
     });
     assert.equal(status, 400);
     assert.match(body.error, /valid email/);
+  });
+
+  test('global API rate limiting returns a structured 429 response', async () => {
+    const limited = await serve(createApp());
+    try {
+      let response;
+      for (let i = 0; i < 125; i++) {
+        response = await limited.call('/api/rate-limit-check');
+        if (response.status === 429) break;
+      }
+      assert.equal(response.status, 429);
+      assert.equal(response.body.code, 'RATE_LIMITED');
+    } finally {
+      await limited.close();
+    }
   });
 });
 
@@ -113,12 +148,16 @@ describe('error handler', () => {
 });
 
 describe('config', () => {
-  const base = { databaseUrl: 'postgres://x', jwtSecret: 'dev-only-insecure-secret-change-me', anthropicApiKey: 'k', isProduction: false };
+  const base = { databaseUrl: 'postgres://x', jwtSecret: 'dev-only-insecure-secret-change-me', appDbPassword: 'a-real-database-password-with-32-chars', anthropicApiKey: 'k', isProduction: false, clientOrigins: ['https://app.example'] };
 
   test('production refuses to start without a real JWT secret', () => {
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: '' }).errors.length, 1);
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'change-me-to-a-long-random-string' }).errors.length, 1);
-    assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret' }).errors.length, 0);
+    assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'replace-with-a-random-secret-that-is-long-enough' }).errors.length, 1);
+    assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'dev-only-insecure-secret-change-me' }).errors.length, 1);
+    assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32' }).errors.length, 0);
+    assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: 'replace-with-sample-password-at-least-32' }).errors.length, 1);
+    assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: '' }).errors.length, 1);
   });
 
   test('development only warns about the dev secret and a missing AI key', () => {

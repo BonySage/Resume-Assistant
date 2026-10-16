@@ -5,11 +5,21 @@ import { badRequest, notFound, unprocessable } from '../errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { extractResumeText, matchesFileSignature } from '../lib/parseResume.js';
 import { parseResumeStructure } from '../lib/parseResumeStructure.js';
+import { rateLimit } from 'express-rate-limit';
 
 const ALLOWED_MIME = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
+
+const uploadRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Too many resume uploads. Try again in 15 minutes.', code: 'RATE_LIMITED' },
+});
 
 // The file is only needed long enough to extract its text, so it stays in
 // memory and is never written to disk. Export rebuilds the PDF from parsed_data.
@@ -64,11 +74,14 @@ router.get('/', async (req, res) => {
     [req.user.id, limit, offset]
   );
   const { rows: countRows } = await query(
-    'SELECT COUNT(*) AS total FROM resumes WHERE user_id = $1',
+    `SELECT COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE parse_error IS NULL) AS ready_total
+     FROM resumes WHERE user_id = $1`,
     [req.user.id]
   );
   const total = parseInt(countRows[0].total, 10);
-  res.json({ resumes: rows.map((r) => serializeResume(r)), pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+  const readyTotal = parseInt(countRows[0].ready_total, 10);
+  res.json({ resumes: rows.map((r) => serializeResume(r)), pagination: { page, limit, total, pages: Math.ceil(total / limit), readyTotal } });
 });
 
 router.get('/:id', async (req, res) => {
@@ -83,7 +96,7 @@ router.get('/:id', async (req, res) => {
 const UNREADABLE = "We couldn't read any text from that file. Try a different PDF or DOCX."; // NFR-4.1
 
 // FR-2.1 upload + FR-2.2 automatic parsing
-router.post('/', upload.single('file'), async (req, res) => {
+router.post('/', uploadRateLimit, upload.single('file'), async (req, res) => {
   if (!req.file) throw badRequest('No file uploaded.', { code: 'NO_FILE' });
   const { buffer, mimetype, originalname, size } = req.file;
 
@@ -99,7 +112,7 @@ router.post('/', upload.single('file'), async (req, res) => {
   try {
     text = await extractResumeText(buffer, mimetype, originalname);
   } catch (err) {
-    console.warn(`[resumes] text extraction failed for user ${req.user.id}:`, err.message);
+    console.warn(`[resumes] text extraction failed for user ${req.user.id}: ${err.name || 'Error'}`);
     throw unprocessable(UNREADABLE, { code: 'UNREADABLE_FILE' });
   }
   if (!text || text.length < 20) throw unprocessable(UNREADABLE, { code: 'UNREADABLE_FILE' });

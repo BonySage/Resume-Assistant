@@ -16,19 +16,19 @@ RAPages.dashboard = function () {
     $("#t-resumes").textContent = rows.filter(r => r.status === "ready").length;
     $("#resume-rows").innerHTML = rows.map(r => {
       const status = r.status === "ready"
-        ? `<span class="badge badge-good">${icon("check")}Ready · ${r.bullets} bullets</span>`
+        ? `<span class="badge badge-good">${icon("check")}Ready · ${RA.escapeHtml(r.bullets)} bullets</span>`
         : `<span class="badge badge-bad">${icon("x")}Couldn’t read text</span>`;
       const note = r.status === "error"
         ? `<div class="row-note">${icon("info", "icon-sm")}<span>This looks like a scanned image. Upload a PDF exported from Word or Google Docs so we can read the text.</span></div>` : "";
       const action = r.status === "ready"
-        ? `<a class="btn btn-secondary btn-sm" href="job.html" data-use="${r.id}">${icon("target")}Analyze</a>`
+        ? `<a class="btn btn-secondary btn-sm" href="job.html" data-use="${RA.escapeHtml(r.id)}">${icon("target")}Analyze</a>`
         : `<label class="btn btn-secondary btn-sm" for="file-input">${icon("upload")}Re‑upload</label>`;
       return `<tr>
-        <td><div class="file-cell"><span class="file-ico" data-kind="${r.kind}">${r.kind.toUpperCase()}</span><div>${r.name}${note}</div></div></td>
-        <td class="muted">${r.date}</td>
+        <td><div class="file-cell"><span class="file-ico" data-kind="${RA.escapeHtml(r.kind)}">${RA.escapeHtml(r.kind).toUpperCase()}</span><div>${RA.escapeHtml(r.name)}${note}</div></div></td>
+        <td class="muted">${RA.escapeHtml(r.date)}</td>
         <td>${status}</td>
         <td><div class="row" style="justify-content:flex-end">${action}
-          <button class="btn btn-ghost btn-sm btn-icon" type="button" data-del="${r.id}" aria-label="Delete ${r.name}" data-tip="Delete resume">${icon("trash")}</button></div></td>
+          <button class="btn btn-ghost btn-sm btn-icon" type="button" data-del="${RA.escapeHtml(r.id)}" aria-label="Delete ${RA.escapeHtml(r.name)}" data-tip="Delete resume">${icon("trash")}</button></div></td>
       </tr>`;
     }).join("") || `<tr><td colspan="4"><div class="empty">No resumes yet. Upload one above to get started.</div></td></tr>`;
   }
@@ -37,8 +37,8 @@ RAPages.dashboard = function () {
   function renderAnalyses() {
     $("#analysis-list").innerHTML = RAData.state.analyses.map(a => `
       <li><a class="analysis-item" href="results.html">
-        <span><strong>${a.title}</strong><span class="small muted">${a.company} · ${a.date}</span></span>
-        <span class="mini-score"><span class="n">${a.score}<span class="small">%</span></span>${RA.levelBadge(a.score)}</span>
+        <span><strong>${RA.escapeHtml(a.title)}</strong><span class="small muted">${RA.escapeHtml(a.company)} · ${RA.escapeHtml(a.date)}</span></span>
+        <span class="mini-score"><span class="n">${RA.escapeHtml(a.score)}<span class="small">%</span></span>${RA.levelBadge(a.score)}</span>
       </a></li>`).join("");
   }
 
@@ -57,7 +57,7 @@ RAPages.dashboard = function () {
     const r = RAData.state.resumes[idx];
     const ok = await RA.confirm({
       title: "Delete this resume?",
-      body: `<strong>${r.name}</strong> and its analyses will be permanently deleted. This can’t be undone.`,
+      body: `<strong>${RA.escapeHtml(r.name)}</strong> and its analyses will be permanently deleted. This can’t be undone.`,
       extra: `<label class="check" style="margin-top:16px"><input type="checkbox" checked> Also delete my saved bullet improvements</label>`,
       confirmLabel: "Delete resume"
     });
@@ -80,7 +80,7 @@ RAPages.dashboard = function () {
   input.addEventListener("change", () => { handle(input.files[0]); input.value = ""; });
 
   function fail(title, text) {
-    area.innerHTML = `<div class="alert alert-error" role="alert" style="margin-top:16px">${icon("x-circle")}<div class="alert-body"><strong>${title}</strong>${text}</div></div>`;
+    area.innerHTML = `<div class="alert alert-error" role="alert" style="margin-top:16px">${icon("x-circle")}<div class="alert-body"><strong>${RA.escapeHtml(title)}</strong>${RA.escapeHtml(text)}</div></div>`;
   }
 
   let cancelled = false;
@@ -91,15 +91,16 @@ RAPages.dashboard = function () {
     if (file.size > MAX) return fail("File too large", `Resumes must be 10 MB or smaller. This one is ${(file.size / 1048576).toFixed(1)} MB.`);
 
     cancelled = false;
+    const safeName = RA.escapeHtml(file.name);
     const total = Math.max(file.size, 350000);
     area.innerHTML = `
       <div class="upload-status">
         <div class="row-between">
           <div class="file-cell"><span class="file-ico" data-kind="${ext}">${ext.toUpperCase()}</span>
-            <div><div>${file.name}</div><div class="small muted" id="up-bytes">0 KB of ${(total / 1024).toFixed(0)} KB</div></div></div>
+            <div><div>${safeName}</div><div class="small muted" id="up-bytes">0 KB of ${(total / 1024).toFixed(0)} KB</div></div></div>
           <div class="row"><strong class="mono" id="up-pct">0%</strong><button class="btn btn-secondary btn-sm" type="button" id="up-cancel">Cancel</button></div>
         </div>
-        <div class="progress" style="margin-top:12px" role="progressbar" aria-label="Uploading ${file.name}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+        <div class="progress" style="margin-top:12px" role="progressbar" aria-label="Uploading ${safeName}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
         <p class="small muted" style="margin-top:8px" id="up-next">Uploading… next we’ll read your sections (about 5 seconds)</p>
       </div>`;
     $("#up-cancel").addEventListener("click", () => {
@@ -126,7 +127,7 @@ RAPages.dashboard = function () {
     renderResumes();
     area.innerHTML = `
       <div class="alert alert-success" style="margin-top:16px">${icon("check-circle")}
-        <div class="alert-body"><strong>Resume uploaded</strong>We found 5 sections and 14 bullets in ${file.name}.
+        <div class="alert-body"><strong>Resume uploaded</strong>We found 5 sections and 14 bullets in ${safeName}.
           <div class="alert-actions"><a class="btn btn-primary btn-sm" href="job.html">Compare with a job ${icon("arrow-right")}</a></div>
         </div>
       </div>`;
