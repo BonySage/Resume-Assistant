@@ -74,19 +74,28 @@ export default function Results() {
                 <div className="score">
                   <ScoreRing value={a.score} />
                   <div>
-                    <span className={`badge badge-${lvl.key}`} style={{ fontSize: '1rem', padding: '5px 14px' }}><Icon name={lvl.icon} />{lvl.word} match</span>
-                    <p style={{ marginTop: 12, fontSize: '1.125rem' }}>
-                      {lvl.key === 'good'
-                        ? <>You’re a <span className="hl"><strong>strong match</strong></span>. Polish a bullet or two to stand out.</>
-                        : toStrong > 0
-                          ? <>Adding <span className="hl"><strong>{toStrong === 1 ? '1 missing skill' : `${toStrong} missing skills`}</strong></span> could move you toward <strong>Strong</strong>.</>
-                          : <>Mention your <span className="hl"><strong>weak keywords</strong></span> again in context to move toward <strong>Strong</strong>.</>}
-                    </p>
-                    <div className="scale" role="list" aria-label="Score ranges">
-                      <div className="s-bad" role="listitem" aria-current={lvl.key === 'bad' ? 'true' : undefined}><Icon name="x" />Low 0–49</div>
-                      <div className="s-fair" role="listitem" aria-current={lvl.key === 'fair' ? 'true' : undefined}><Icon name="bang" />Fair 50–74</div>
-                      <div className="s-good" role="listitem" aria-current={lvl.key === 'good' ? 'true' : undefined}><Icon name="check" />Strong 75+</div>
-                    </div>
+                    {a.score == null ? (
+                      <p style={{ marginTop: 12, fontSize: '1.125rem' }}>
+                        This job posting had <strong>no listed skills</strong>, so a keyword match score couldn't be calculated.
+                        Check the recommendations below for next steps.
+                      </p>
+                    ) : (
+                      <>
+                        <span className={`badge badge-${lvl.key}`} style={{ fontSize: '1rem', padding: '5px 14px' }}><Icon name={lvl.icon} />{lvl.word} match</span>
+                        <p style={{ marginTop: 12, fontSize: '1.125rem' }}>
+                          {lvl.key === 'good'
+                            ? <>You're a <span className="hl"><strong>strong match</strong></span>. Polish a bullet or two to stand out.</>
+                            : toStrong > 0
+                              ? <>Adding <span className="hl"><strong>{toStrong === 1 ? '1 missing skill' : `${toStrong} missing skills`}</strong></span> could move you toward <strong>Strong</strong>.</>
+                              : <>Mention your <span className="hl"><strong>weak keywords</strong></span> again in context to move toward <strong>Strong</strong>.</>}
+                        </p>
+                        <div className="scale" role="list" aria-label="Score ranges">
+                          <div className="s-bad" role="listitem" aria-current={lvl.key === 'bad' ? 'true' : undefined}><Icon name="x" />Low 0–49</div>
+                          <div className="s-fair" role="listitem" aria-current={lvl.key === 'fair' ? 'true' : undefined}><Icon name="bang" />Fair 50–74</div>
+                          <div className="s-good" role="listitem" aria-current={lvl.key === 'good' ? 'true' : undefined}><Icon name="check" />Strong 75+</div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </section>

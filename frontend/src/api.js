@@ -36,6 +36,25 @@ async function request(path, options = {}) {
   return res;
 }
 
+function paginatedPath(path, pagination) {
+  if (!pagination) return path;
+  const params = new URLSearchParams();
+  if (pagination.page != null) params.set('page', pagination.page);
+  if (pagination.limit != null) params.set('limit', pagination.limit);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
+export async function listAllPages(fetchPage, key) {
+  const first = await fetchPage({ page: 1, limit: 100 });
+  const pages = first.pagination?.pages || 1;
+  if (pages <= 1) return first[key];
+  const remaining = await Promise.all(
+    Array.from({ length: pages - 1 }, (_, index) => fetchPage({ page: index + 2, limit: 100 }))
+  );
+  return [first, ...remaining].flatMap((page) => page[key]);
+}
+
 export const api = {
   me: () => request('/auth/me'),
   signup: (body) => request('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
@@ -44,7 +63,7 @@ export const api = {
   deleteAccount: () => request('/auth/me', { method: 'DELETE' }),
 
   // Resumes
-  listResumes: () => request('/resumes'),
+  listResumes: (pagination) => request(paginatedPath('/resumes', pagination)),
   getResume: (id) => request(`/resumes/${id}`),
   // XHR (not fetch) so we get real upload progress events. Pass an AbortSignal to cancel.
   uploadResumeWithProgress: (file, onProgress, signal) =>
@@ -82,7 +101,7 @@ export const api = {
   deleteResume: (id) => request(`/resumes/${id}`, { method: 'DELETE' }),
 
   // Job postings
-  listJobPostings: () => request('/job-postings'),
+  listJobPostings: (pagination) => request(paginatedPath('/job-postings', pagination)),
   getJobPosting: (id) => request(`/job-postings/${id}`),
   createJobPostingFromUrl: (url, signal) => request('/job-postings', { method: 'POST', body: JSON.stringify({ url }), signal }),
   createJobPostingFromText: (text, signal) => request('/job-postings', { method: 'POST', body: JSON.stringify({ text }), signal }),
@@ -91,7 +110,7 @@ export const api = {
   createAnalysis: (resumeId, jobPostingId) =>
     request('/analyses', { method: 'POST', body: JSON.stringify({ resumeId, jobPostingId }) }),
   getAnalysis: (id) => request(`/analyses/${id}`),
-  listAnalyses: () => request('/analyses'),
+  listAnalyses: (pagination) => request(paginatedPath('/analyses', pagination)),
 
   // Bullet improvement
   listBulletSuggestions: (analysisId) => request(`/analyses/${analysisId}/bullets`),

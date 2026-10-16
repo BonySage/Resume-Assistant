@@ -7,7 +7,7 @@ export default function Latest() {
   const { screen } = useParams();
   const navigate = useNavigate();
   useEffect(() => {
-    api.listAnalyses()
+    api.listAnalyses({ page: 1, limit: 1 })
       .then(({ analyses }) => {
         const a = analyses[0];
         if (!a) return navigate('/job', { replace: true });

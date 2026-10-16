@@ -38,10 +38,10 @@ A web app that helps job seekers tailor a resume to a specific job posting. It s
 git clone https://github.com/BonySage/Resume-Assistant.git
 cd Resume-Assistant
 
-# 1. Backend secrets
-cp backend/.env.example backend/.env   # set JWT_SECRET and ANTHROPIC_API_KEY
+# 1. Local Docker secrets (required; no database setup is needed)
+cp compose.env.example .env            # replace the two DB passwords and JWT_SECRET
 
-# 2. Database + API (migrations run automatically on start)
+# 2. Docker creates the single database and applies migrations automatically
 docker compose up -d --build           # API on http://localhost:3000
 
 # 3. Frontend, in a second terminal
@@ -54,7 +54,14 @@ Open http://localhost:5173 and create an account.
 
 ### Environment variables
 
-Set in `backend/.env` (see [backend/.env.example](backend/.env.example)):
+Docker Compose creates the `resume_assistant` database, provisions the restricted
+`resume_app` role, and applies migrations on startup. You do not create the
+database or run migrations manually. The one-time root `.env` is for local
+secrets only; without an Anthropic key, AI parsing and bullet generation return
+the documented unavailable/fallback states.
+
+For Docker, set values in the root `.env` (see [compose.env.example](compose.env.example)).
+`backend/.env` is only for running the API directly outside Docker (see [backend/.env.example](backend/.env.example)):
 
 | Variable | Purpose |
 |---|---|
@@ -62,12 +69,15 @@ Set in `backend/.env` (see [backend/.env.example](backend/.env.example)):
 | `ANTHROPIC_API_KEY` | Turns on job parsing and bullet rewrites. |
 | `ANTHROPIC_MODEL` | Claude model to use (default `claude-sonnet-5`). |
 | `DATABASE_URL` | Postgres connection. Only used when the backend runs outside Docker. |
+| `MIGRATION_DATABASE_URL` | Privileged Postgres connection used only for migrations and provisioning the runtime DB role. |
+| `APP_DB_PASSWORD` | Password for the restricted `resume_app` runtime role. |
 | `CLIENT_ORIGIN` | Frontend URL allowed by CORS. |
+| `TRUST_PROXY` | Set only behind a trusted proxy; configures forwarded IP/protocol handling. |
 | `PORT` | API port (default `3000`). |
 
 The frontend reads `VITE_API_BASE_URL` (see [frontend/.env.example](frontend/.env.example)). You don't need it for local dev because Vite proxies `/api`.
 
-Never commit a real `.env` file.
+The API uses the restricted `resume_app` database role for normal requests; the migration/admin URL is separate. Never commit a real `.env` file. Compose binds PostgreSQL to `127.0.0.1` for local development; do not expose this stack publicly.
 
 ### Useful Docker commands
 
@@ -75,7 +85,7 @@ Never commit a real `.env` file.
 |---|---|
 | `docker compose logs -f backend` | Follow the API logs |
 | `docker compose up -d --build backend` | Rebuild after backend code changes |
-| `docker compose restart backend` | Reload after editing `backend/.env` |
+| `docker compose up -d --build backend` | Rebuild/recreate after backend code or root `.env` changes |
 | `docker compose down` | Stop everything (data is kept) |
 | `docker compose down -v` | Stop and **delete** the database (all accounts, resumes and analyses) |
 

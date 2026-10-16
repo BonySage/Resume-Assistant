@@ -4,7 +4,7 @@ import AppShell, { useShell } from '../components/AppShell.jsx';
 import { Icon } from '../lib/icons.jsx';
 import { useUI } from '../lib/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { api } from '../api.js';
+import { api, listAllPages } from '../api.js';
 
 const DEFAULTS = { text: 'default', contrast: 'off', motion: 'off', palette: 'standard', notifyDone: true, notifyTips: false };
 const SECTIONS = [
@@ -94,9 +94,13 @@ function SettingsBody() {
 
   const exportData = async () => {
     try {
-      const [r, j, a] = await Promise.all([api.listResumes(), api.listJobPostings(), api.listAnalyses()]);
-      const bullets = await Promise.all(a.analyses.map((x) => api.listBulletSuggestions(x.id).then((s) => ({ analysisId: x.id, ...s }))));
-      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), user, resumes: r.resumes, jobPostings: j.jobPostings, analyses: a.analyses, bulletSuggestions: bullets }, null, 2)], { type: 'application/json' });
+      const [resumes, jobPostings, analyses] = await Promise.all([
+        listAllPages(api.listResumes, 'resumes'),
+        listAllPages(api.listJobPostings, 'jobPostings'),
+        listAllPages(api.listAnalyses, 'analyses'),
+      ]);
+      const bullets = await Promise.all(analyses.map((x) => api.listBulletSuggestions(x.id).then((s) => ({ analysisId: x.id, ...s }))));
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), user, resumes, jobPostings, analyses, bulletSuggestions: bullets }, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
