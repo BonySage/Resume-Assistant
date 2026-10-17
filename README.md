@@ -38,6 +38,9 @@ A web app that helps job seekers tailor a resume to a specific job posting. It s
 git clone https://github.com/BonySage/Resume-Assistant.git
 cd Resume-Assistant
 
+# Build the frontend for production
+npm run build
+
 # 1. Backend secrets
 cp backend/.env.example backend/.env   # set JWT_SECRET and ANTHROPIC_API_KEY
 

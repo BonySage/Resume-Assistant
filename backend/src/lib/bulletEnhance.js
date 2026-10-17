@@ -29,9 +29,15 @@ export async function generateBulletOptions({ bulletText, jobTitle, jobRequireme
       max_tokens: 1024,
       system:
         'You rewrite a single resume bullet to be stronger and more tailored to a target job, using only facts ' +
-        'already present in the provided resume evidence. Add quantification and impact where the evidence supports ' +
-        'it. Never claim a skill, tool, or outcome that is not backed by the evidence — that is a hallucination and ' +
-        'is not acceptable, even if it would match the job requirements better.',
+        'already present in the provided resume evidence. Never claim a skill, tool, or outcome that is not backed ' +
+        'by the evidence — that is a hallucination and is not acceptable, even if it would match the job better.\n\n' +
+        'Rules:\n' +
+        '- Use a job requirement only if the evidence already describes that skill in other words.\n' +
+        '- If a number would help but none is in the evidence, write a placeholder like [X%] or [number] ' +
+        'so the user fills in the real figure. Never invent a metric.\n' +
+        '- Start each option with a strong action verb (Built, Developed, Led, Automated, Designed).\n' +
+        '- Keep each option to one line, under about 25 words.\n' +
+        '- Make the 3 options different: one focused on impact, one on technical skills, one on job-posting keywords.',
       tools: [BULLET_OPTIONS_TOOL],
       tool_choice: { type: 'tool', name: 'submit_bullet_options' },
       messages: [
