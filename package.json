@@ -5,6 +5,7 @@
   "description": "Resume Assistant UI prototype (HTML, CSS, JavaScript). UI Design Assignment.",
   "scripts": {
     "build": "npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev",
     "start": "npm --prefix frontend run dev",
     "pdf": "node scripts/export-pdf.mjs"
   }

@@ -35,7 +35,6 @@ Standalone HTML, CSS, and JavaScript prototype screens with sample data are incl
 | Export | `export.html` |
 | Confirmation | `done.html` |
 | Settings | `settings.html` |
-| Style guide | `styleguide.html` |
 
 Prototype styles are in `css/styles.css`; shared behavior is in `js/app.js`; sample data is in `js/data.js`; page behavior is in `js/pages/`. The exported design PDF is in `docs/UI-Design.pdf`.
 

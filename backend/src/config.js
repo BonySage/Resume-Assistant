@@ -22,6 +22,9 @@ export const config = {
   cookieSecure: isProduction,
   anthropicApiKey: env.ANTHROPIC_API_KEY || '',
   anthropicModel: env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+  // Resume and job-posting parsing is plain extraction, so a faster, cheaper
+  // model is enough and keeps upload processing near NFR-1.1's 5 seconds.
+  anthropicParseModel: env.ANTHROPIC_PARSE_MODEL || 'claude-haiku-5-5',
   // Request body size for JSON APIs. File uploads go through multer, not this.
   jsonLimit: '1mb',
 };

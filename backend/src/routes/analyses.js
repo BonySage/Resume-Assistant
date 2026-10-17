@@ -2,11 +2,14 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { computeMatch } from '../lib/atsMatch.js';
-import { generateBulletOptions, flagHallucinations } from '../lib/bulletEnhance.js';
+import { generateBulletOptions, validateOptions, findUnsupportedClaims, hasPlaceholder } from '../lib/bulletEnhance.js';
+import { cleanText } from '../lib/validators.js';
 import { renderResumePdf } from '../lib/generatePdf.js';
 
 const router = Router();
 router.use(requireAuth);
+
+const MAX_BULLET_LENGTH = 300; // matches the editor's limit on the improve page
 
 function serializeAnalysis(row) {
   return {
@@ -142,7 +145,7 @@ router.post('/:id/bullets/:bulletId/generate', async (req, res) => {
       jobRequirements: jobKeywords,
       resumeEvidence: resume.extracted_text.slice(0, 6000),
     });
-    options = flagHallucinations(raw, jobKeywords, resume.extracted_text);
+    options = validateOptions(raw, { resumeText: resume.extracted_text, originalBullet: found.bullet.text, jobKeywords });
   } catch (err) {
     // NFR-4.3: AI service unavailable — tell the user, allow manual editing instead.
     return res.status(502).json({ error: err.message || 'The AI service is unavailable right now.', allowManualEdit: true });
@@ -151,7 +154,9 @@ router.post('/:id/bullets/:bulletId/generate', async (req, res) => {
   const { rows } = await query(
     `INSERT INTO bullet_suggestions (analysis_id, bullet_id, original_text, options)
      VALUES ($1, $2, $3, $4)
-     ON CONFLICT (analysis_id, bullet_id) DO UPDATE SET options = EXCLUDED.options, selected_index = NULL, selected_text = NULL
+     -- Regenerating must not undo a bullet the user already saved (FR-5.3): keep
+     -- selected_text, but the old index no longer points at the same option.
+     ON CONFLICT (analysis_id, bullet_id) DO UPDATE SET options = EXCLUDED.options, selected_index = NULL
      RETURNING *`,
     [analysis.id, req.params.bulletId, found.bullet.text, JSON.stringify(options)]
   );
@@ -162,21 +167,60 @@ router.post('/:id/bullets/:bulletId/generate', async (req, res) => {
 router.post('/:id/bullets/:bulletId/select', async (req, res) => {
   const analysis = await ownedAnalysis(req.params.id, req.user.id);
   if (!analysis) return res.status(404).json({ error: 'Analysis not found.' });
-  const { index, text } = req.body || {};
+  const { index, confirmUnverified } = req.body || {};
+  const text = req.body?.text == null ? null : cleanText(req.body.text).replace(/\s+/g, ' ');
+
+  const resume = await ownedResume(analysis.resume_id, req.user.id);
+  const found = findBullet(resume, req.params.bulletId);
+  if (!found) return res.status(404).json({ error: 'Bullet not found on this resume.' });
 
   const { rows: existingRows } = await query(
     'SELECT * FROM bullet_suggestions WHERE analysis_id = $1 AND bullet_id = $2',
     [analysis.id, req.params.bulletId]
   );
   let existing = existingRows[0];
+
+  // Resolve what is being saved: an AI option picked as-is, or edited text.
+  let option = Number.isInteger(index) ? existing?.options?.[index] : null;
+  if (Number.isInteger(index) && !option) return res.status(400).json({ error: 'That option no longer exists. Pick one of the current options.' });
+  if (text != null && option && text !== option.text) option = null; // edited, so it's the user's own text now
+  const selectedText = option ? option.text : text;
+
+  if (!selectedText) return res.status(400).json({ error: 'The bullet can’t be empty.' });
+  if (selectedText.length > MAX_BULLET_LENGTH) {
+    return res.status(400).json({ error: `Keep the bullet under ${MAX_BULLET_LENGTH} characters.` });
+  }
+  if (hasPlaceholder(selectedText)) {
+    return res.status(400).json({ error: 'Replace the [placeholder] with your real number or detail before saving.', code: 'PLACEHOLDER' });
+  }
+
+  // FR-5.2: an AI option that failed validation can't be saved as-is — the AI
+  // must not put a claim on the resume that the resume doesn't back up.
+  if (option?.flagged) {
+    return res.status(422).json({
+      error: 'This option mentions something that isn’t in your resume. Edit it first, or pick another option.',
+      code: 'UNVERIFIED_CLAIM',
+      issues: option.issues || [],
+    });
+  }
+  // Text the user wrote or edited is theirs to vouch for, but ask them to confirm
+  // anything the resume doesn't support (e.g. a leftover AI claim they didn't remove).
+  if (!option) {
+    const jobPosting = await ownedJobPosting(analysis.job_posting_id, req.user.id);
+    const jobKeywords = [...(jobPosting?.required_skills?.critical || []), ...(jobPosting?.required_skills?.secondary || [])];
+    const issues = findUnsupportedClaims(selectedText, { resumeText: `${resume.extracted_text}\n${found.bullet.text}`, jobKeywords });
+    if (issues.length && confirmUnverified !== true) {
+      return res.status(422).json({
+        error: 'This bullet mentions something that isn’t in your resume.',
+        code: 'UNVERIFIED_CLAIM',
+        issues,
+        canConfirm: true,
+      });
+    }
+  }
+
   if (!existing) {
     // NFR-4.3: when AI generation failed, the user can still save a manually edited bullet.
-    if (typeof text !== 'string' || !text.trim()) {
-      return res.status(404).json({ error: 'Generate options for this bullet first.' });
-    }
-    const resume = await ownedResume(analysis.resume_id, req.user.id);
-    const found = findBullet(resume, req.params.bulletId);
-    if (!found) return res.status(404).json({ error: 'Bullet not found on this resume.' });
     const { rows: created } = await query(
       `INSERT INTO bullet_suggestions (analysis_id, bullet_id, original_text, options)
        VALUES ($1, $2, $3, '[]') RETURNING *`,
@@ -185,15 +229,10 @@ router.post('/:id/bullets/:bulletId/select', async (req, res) => {
     existing = created[0];
   }
 
-  let selectedText = text;
-  if (selectedText == null && Number.isInteger(index)) {
-    selectedText = existing.options?.[index]?.text ?? null;
-  }
-  if (!selectedText) return res.status(400).json({ error: 'Provide a selected option index or edited text.' });
-
+  // FR-5.3: the saved text replaces the original bullet in the exported resume.
   const { rows } = await query(
     'UPDATE bullet_suggestions SET selected_index = $1, selected_text = $2 WHERE id = $3 RETURNING *',
-    [Number.isInteger(index) ? index : null, selectedText, existing.id]
+    [option ? index : null, selectedText, existing.id]
   );
   res.json({ suggestion: serializeSuggestion(rows[0]) });
 });
