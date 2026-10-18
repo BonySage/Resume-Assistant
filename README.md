@@ -38,15 +38,17 @@ A web app that helps job seekers tailor a resume to a specific job posting. It s
 git clone https://github.com/BonySage/Resume-Assistant.git
 cd Resume-Assistant
 
+# Build the frontend for production
+npm run build
+
 # 1. Backend secrets
 cp backend/.env.example backend/.env   # set JWT_SECRET and ANTHROPIC_API_KEY
 
 # 2. Database + API (migrations run automatically on start)
 docker compose up -d --build           # API on http://localhost:3000
 
-# 3. Frontend, in a second terminal
-cd frontend
-npm install
+# 3. Frontend, in a second terminal (from the Resume-Assistant directory)
+npm --prefix frontend install
 npm run dev                            # http://localhost:5173, proxies /api to :3000
 ```
 
@@ -60,7 +62,8 @@ Set in `backend/.env` (see [backend/.env.example](backend/.env.example)):
 |---|---|
 | `JWT_SECRET` | Signs login tokens. Use a long random string. |
 | `ANTHROPIC_API_KEY` | Turns on job parsing and bullet rewrites. |
-| `ANTHROPIC_MODEL` | Claude model to use (default `claude-sonnet-5`). |
+| `ANTHROPIC_MODEL` | Claude model for bullet rewrites (default `claude-sonnet-5`). |
+| `ANTHROPIC_PARSE_MODEL` | Faster model for resume and job-posting parsing (default `claude-haiku-5-5`). |
 | `DATABASE_URL` | Postgres connection. Only used when the backend runs outside Docker. |
 | `CLIENT_ORIGIN` | Frontend URL allowed by CORS. |
 | `PORT` | API port (default `3000`). |

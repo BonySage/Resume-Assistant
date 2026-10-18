@@ -31,7 +31,6 @@ export default function Home() {
             <a href="#how">How it works</a>
             <a href="#features">Features</a>
             <a href="#faq">FAQ</a>
-            <Link to="/styleguide">Style guide</Link>
           </nav>
           <div className="topbar-actions">
             {user ? (
@@ -209,16 +208,6 @@ export default function Home() {
                 <h3>PDF export</h3>
                 <p>Preview every change, then download a clean file. Your original stays untouched.</p>
               </article>
-              <article className="bento-card b-wide" style={{ '--c': 'var(--ink)', '--t': 'var(--marker-soft)' }}>
-                <span className="how-ico"><Icon name="access" /></span>
-                <h3>Accessible by design</h3>
-                <p>WCAG AA contrast, colour‑blind friendly keyword colours, text up to 150% and full keyboard support.</p>
-                <div className="chips" style={{ marginTop: 12 }}>
-                  <span className="chip chip-kw">Aa 150%</span>
-                  <span className="chip chip-kw">High contrast</span>
-                  <span className="chip chip-kw">Reduce motion</span>
-                </div>
-              </article>
             </div>
           </div>
         </section>
@@ -244,6 +233,7 @@ export default function Home() {
               <p className="muted" style={{ marginTop: 12 }}>Still curious? Open Help from the <b>?</b> button inside the app.</p>
             </div>
             <div className="faq">
+              <details><summary>Who’s on the team?</summary><p>Gaurav Bhandari · Database<br />Serene Plummer · Backend<br />Ingeet Adhikari · Frontend<br />Anup Sharma · QA</p></details>
               <details open><summary>Is Forma free?</summary><p>Yes. It’s free for students and early‑career job seekers.</p></details>
               <details><summary>Which files can I upload?</summary><p>PDF or Word (DOCX) files up to 10 MB. Scanned images can’t be read, so export your resume from Word or Google Docs.</p></details>
               <details><summary>Will the AI make things up?</summary><p>It only rewrites what’s on your resume. If an option mentions a skill you haven’t listed, it’s flagged so you can skip it.</p></details>
@@ -277,8 +267,7 @@ export default function Home() {
               <p className="footer-tag">Scan. Match. Improve. A resume helper built for students and early‑career job seekers.</p>
             </div>
             <nav aria-label="Product"><h3>Product</h3><a href="#how">How it works</a><a href="#features">Features</a><a href="#example">Example</a><a href="#faq">FAQ</a></nav>
-            <nav aria-label="Resources"><h3>Resources</h3><Link to="/styleguide">Style guide</Link><Link to="/signup">Create account</Link><Link to="/login">Log in</Link></nav>
-            <nav aria-label="Team"><h3>Team</h3><span>Gaurav Bhandari · Database</span><span>Serene Plummer · Backend</span><span>Ingeet Adhikari · Frontend</span><span>Anup Sharma · QA</span></nav>
+            <nav aria-label="Resources"><h3>Resources</h3><Link to="/signup">Create account</Link><Link to="/login">Log in</Link></nav>
           </div>
           <div className="footer-bottom">
             <span>© 2026 Forma. All rights reserved.</span>

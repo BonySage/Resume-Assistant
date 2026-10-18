@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { getClient, MODEL, friendlyAiError } from './aiClient.js';
+import { getClient, PARSE_MODEL, friendlyAiError, readJsonOutput } from './aiClient.js';
 
 const URL_FETCH_TIMEOUT_MS = 10_000; // NFR-1.2
 
@@ -69,32 +69,31 @@ export async function fetchJobPostingText(url) {
   return text;
 }
 
-const JOB_POSTING_TOOL = {
-  name: 'submit_job_posting',
-  description: 'Submit the job posting parsed into structured fields.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      title: { type: 'string' },
-      company: { type: 'string' },
-      description: { type: 'string', description: 'A cleaned-up version of the core job description text.' },
-      requiredSkills: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Skills/tools/qualifications explicitly required or strongly emphasized (critical keywords).',
-      },
-      secondarySkills: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Skills/tools mentioned as nice-to-have, or implied by responsibilities but not called out as required (secondary keywords).',
-      },
-      responsibilities: {
-        type: 'array',
-        items: { type: 'string' },
-      },
+// Structured outputs need additionalProperties: false and every field required;
+// the model uses "" / [] for anything the posting doesn't state.
+const JOB_POSTING_SCHEMA = {
+  type: 'object',
+  properties: {
+    title: { type: 'string' },
+    company: { type: 'string' },
+    description: { type: 'string', description: 'A cleaned-up version of the core job description text.' },
+    requiredSkills: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Skills/tools/qualifications explicitly required or strongly emphasized (critical keywords).',
     },
-    required: ['requiredSkills', 'secondarySkills', 'responsibilities'],
+    secondarySkills: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Skills/tools mentioned as nice-to-have, or implied by responsibilities but not called out as required (secondary keywords).',
+    },
+    responsibilities: {
+      type: 'array',
+      items: { type: 'string' },
+    },
   },
+  required: ['title', 'company', 'description', 'requiredSkills', 'secondarySkills', 'responsibilities'],
+  additionalProperties: false,
 };
 
 // FR-3.2
@@ -103,21 +102,19 @@ export async function parseJobPostingText(rawText) {
   let message;
   try {
     message = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 2048,
+      model: PARSE_MODEL,
+      max_tokens: 8192,
+      // Extraction, not reasoning: low effort keeps this fast.
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: JOB_POSTING_SCHEMA } },
       system:
         'You parse raw job-posting text (which may include unrelated page chrome from a scraped web page) into ' +
         'structured JSON. Ignore navigation/footer/ad text. Distinguish explicitly required skills (critical) from ' +
-        'nice-to-have or implied skills (secondary).',
-      tools: [JOB_POSTING_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_job_posting' },
+        'nice-to-have or implied skills (secondary). Use an empty string or empty list for anything not stated.',
       messages: [{ role: 'user', content: `Job posting text:\n\n---\n${rawText.slice(0, 12000)}\n---` }],
     });
   } catch (err) {
     throw friendlyAiError(err);
   }
 
-  const toolUse = message.content.find((b) => b.type === 'tool_use');
-  if (!toolUse) throw new Error('The model did not return a structured job posting.');
-  return toolUse.input;
+  return readJsonOutput(message, 'job posting');
 }

@@ -12,7 +12,6 @@ import BulletImprove from './pages/BulletImprove.jsx';
 import Download from './pages/Download.jsx';
 import Done from './pages/Done.jsx';
 import Settings from './pages/Settings.jsx';
-import Styleguide from './pages/Styleguide.jsx';
 import Latest from './pages/Latest.jsx';
 
 // New page → start at the top (in-page #anchors still scroll to their section).
@@ -36,7 +35,6 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Auth mode="login" />} />
           <Route path="/signup" element={<Auth mode="signup" />} />
-          <Route path="/styleguide" element={<Styleguide />} />
           <Route path="/dashboard" element={<P><Dashboard /></P>} />
           <Route path="/job" element={<P><JobPosting /></P>} />
           <Route path="/results/:analysisId" element={<P><Results /></P>} />
