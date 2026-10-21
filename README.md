@@ -7,7 +7,7 @@ A web app that helps job seekers tailor a resume to a specific job posting. It s
 ## Features
 
 - **Accounts:** sign up and log in with email and password. Sessions time out after 15 minutes of inactivity.
-- **Resume upload:** PDF or DOCX, up to 10 MB. The file is parsed in memory and not stored; only the extracted text and sections are saved.
+- **Resume upload:** PDF or DOCX, up to 10 MB. The file is saved to your account so you can open or download it from the dashboard; deleting the resume deletes the file.
 - **Job posting input:** paste a URL, or paste the description if the URL can't be read.
 - **Match score:** a 0–100 score, with keywords sorted into matched, missing (critical and secondary) and weak.
 - **Bullet rewrites:** 3 AI-suggested rewrites for any resume bullet. Suggestions are checked so they don't claim skills the resume doesn't show.

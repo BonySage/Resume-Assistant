@@ -11,15 +11,17 @@ const BULLET_OPTIONS_SCHEMA = {
   properties: {
     impact: { type: 'string', description: 'Rewrite focused on outcome and impact.' },
     skills: { type: 'string', description: 'Rewrite focused on technical skills and tools.' },
-    keywords: { type: 'string', description: 'Rewrite that works in job-posting keywords the evidence supports.' },
+    keywords: { type: 'string', description: 'Rewrite built around the target keywords, worked in as naturally as possible.' },
   },
   required: ['impact', 'skills', 'keywords'],
   additionalProperties: false,
 };
 
 // FR-5.2: generate 3 AI-improved options for a bullet, grounded in the job's
-// requirements and the resume's own evidence (so it doesn't invent skills).
-export async function generateBulletOptions({ bulletText, jobTitle, jobRequirements, resumeEvidence }) {
+// requirements and the resume's own evidence. Every option must include all
+// targetKeywords (the chips shown above the bullet); validateOptions flags any
+// the resume doesn't back so the user confirms them before saving.
+export async function generateBulletOptions({ bulletText, jobTitle, jobRequirements, targetKeywords = [], resumeEvidence }) {
   const anthropic = getClient();
   let message;
   try {
@@ -30,16 +32,17 @@ export async function generateBulletOptions({ bulletText, jobTitle, jobRequireme
         // Low effort keeps latency well inside the 15s budget; this is a short rewrite.
         output_config: { effort: 'low', format: { type: 'json_schema', schema: BULLET_OPTIONS_SCHEMA } },
         system:
-          'You rewrite a single resume bullet to be stronger and more tailored to a target job, using only facts ' +
-          'already present in the provided resume evidence. Never claim a skill, tool, employer, or outcome that is ' +
-          'not backed by the evidence — that is a hallucination and is not acceptable, even if it would match the job better.\n\n' +
+          'You rewrite a single resume bullet to be stronger and more tailored to a target job, using the facts ' +
+          'in the provided resume evidence. Never invent an employer, outcome, or metric.\n\n' +
           'Rules:\n' +
-          '- Use a job requirement only if the evidence already describes that skill in other words.\n' +
-          '- Do not name any company, product, client, or tool that the evidence does not name.\n' +
+          '- Every option must include every target keyword, spelled as given, tied naturally to the work the ' +
+          'bullet describes. The user reviews each option before saving, and unsupported keywords are flagged for them.\n' +
+          '- Other job requirements may be used only if the evidence already describes that skill in other words.\n' +
+          '- Apart from the target keywords, do not name any company, product, client, or tool that the evidence does not name.\n' +
           '- If a number would help but none is in the evidence, write a placeholder like [X%] or [number] ' +
           'so the user fills in the real figure. Never invent a metric.\n' +
           '- Start each option with a strong action verb (Built, Developed, Led, Automated, Designed).\n' +
-          '- Keep each option to one line, under about 25 words.\n' +
+          '- Keep each option to one line, under about 35 words.\n' +
           '- Each option is only the bullet text itself: no notes, advice, or parenthetical comments to the user.\n' +
           '- Make the 3 options different: one focused on impact, one on technical skills, one on job-posting keywords.',
         messages: [
@@ -47,7 +50,8 @@ export async function generateBulletOptions({ bulletText, jobTitle, jobRequireme
             role: 'user',
             content:
               `Target job: ${jobTitle || '(untitled role)'}\n` +
-              `Job requirements to tailor toward: ${jobRequirements.join(', ') || '(none provided)'}\n\n` +
+              `Job requirements to tailor toward: ${jobRequirements.join(', ') || '(none provided)'}\n` +
+              `Target keywords (include all of them in every option): ${targetKeywords.join(', ') || '(none)'}\n\n` +
               `Resume evidence (the only facts you may draw on):\n${resumeEvidence}\n\n` +
               `Original bullet to improve:\n"${bulletText}"`,
           },

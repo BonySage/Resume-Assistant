@@ -7,24 +7,59 @@ import { resumeBullets, safeFileName } from '../lib/format.js';
 import { estimateScore } from '../lib/match.js';
 import { api, loadAnalysisBundle } from '../api.js';
 
+// Skill groups as the PDF prints them (see skillGroupsOf in backend/src/lib/generatePdf.js).
+const skillGroupsOf = (groups, flat) => {
+  if (groups?.length && typeof groups[0] === 'object') return groups;
+  const items = groups?.length ? groups : flat || [];
+  return items.length ? [{ category: '', items }] : [];
+};
+
+// The resume as it will be exported: tailored skills (if saved) replace the originals.
+export const exportedResume = (data) => {
+  const parsed = data.resume.parsed;
+  if (!parsed) return parsed;
+  const skillGroups = skillGroupsOf(data.analysis.tailoredSkills || parsed.skillGroups, parsed.skills);
+  return { ...parsed, skillGroups, skills: skillGroups.flatMap((g) => g.items) };
+};
+
 export function useExportSummary(data) {
   return useMemo(() => {
     if (!data) return null;
     const overrides = new Map(data.suggestions.filter((s) => s.selectedText).map((s) => [s.bulletId, s.selectedText]));
     const total = resumeBullets(data.resume.parsed).length;
     const improved = [...overrides.keys()].filter((id) => resumeBullets(data.resume.parsed).some((b) => b.id === id)).length;
-    const after = estimateScore(data.resume.parsed, data.job.requiredSkills, overrides);
+    const after = estimateScore(exportedResume(data), data.job.requiredSkills, overrides);
     return { overrides, total, improved, before: data.analysis.score, after: Math.max(after, data.analysis.score) };
   }, [data]);
 }
 
+// Preview laid out like the exported PDF: same section order and entry lines.
 function ResumeSheet({ parsed, overrides }) {
   const c = parsed.contactInfo || {};
-  const contact = [c.email, c.phone, c.location].filter(Boolean).join(' · ');
+  const contact = [c.phone, c.email, c.location, ...(c.links || [])].filter(Boolean).join(' | ');
+  const jobs = (parsed.experience || []).filter((e) => e.section !== 'projects');
+  const projects = (parsed.experience || []).filter((e) => e.section === 'projects');
+
+  const entry = (exp, i, isProject) => (
+    <div key={i}>
+      <div className="job">
+        <span>{isProject ? exp.title || exp.company : exp.company || exp.title}</span>
+        <span>{exp.dates || (isProject ? exp.company : '')}</span>
+      </div>
+      {!isProject && exp.company && (exp.title || exp.location) && <div className="job-sub"><span>{exp.title}</span><span>{exp.location}</span></div>}
+      <ul>
+        {exp.bullets?.map((b) => {
+          const next = overrides.get(b.id);
+          return <li key={b.id} className={next ? 'updated' : undefined}>{next || b.text}</li>;
+        })}
+      </ul>
+    </div>
+  );
+
   return (
     <article className="sheet" aria-label="Resume preview">
       <h3>{c.name || 'Your name'}</h3>
-      {contact && <p style={{ color: '#45464f' }}>{contact}</p>}
+      {contact && <p className="contact">{contact}</p>}
 
       {parsed.summary && (
         <>
@@ -33,28 +68,30 @@ function ResumeSheet({ parsed, overrides }) {
         </>
       )}
 
-      {parsed.experience?.length > 0 && <h4>Experience</h4>}
-      {parsed.experience?.map((exp, i) => (
+      {parsed.education?.length > 0 && <h4>Education</h4>}
+      {parsed.education?.map((ed, i) => (
         <div key={i}>
-          <div className="job"><span>{[exp.title, exp.company].filter(Boolean).join(' · ')}</span><span>{exp.dates}</span></div>
-          <ul>
-            {exp.bullets?.map((b) => {
-              const next = overrides.get(b.id);
-              return <li key={b.id} className={next ? 'updated' : undefined}>{next || b.text}</li>;
-            })}
-          </ul>
+          <div className="job"><span>{ed.school}</span><span>{ed.dates}</span></div>
+          <div className="job-sub"><span>{ed.degree}</span><span>{ed.gpa ? `GPA: ${ed.gpa}` : ed.location}</span></div>
+          {ed.coursework && <p><b>Relevant Coursework:</b> {ed.coursework}</p>}
         </div>
       ))}
 
-      {parsed.education?.length > 0 && <h4>Education</h4>}
-      {parsed.education?.map((ed, i) => (
-        <div className="job" key={i}><span>{[ed.degree, ed.school].filter(Boolean).join(' · ')}</span><span>{ed.dates}</span></div>
+      {parsed.skillGroups?.length > 0 && <h4>Skills</h4>}
+      {parsed.skillGroups?.map((g, i) => (
+        <p className="skill-line" key={i}>{g.category && <b>{g.category}: </b>}{g.items.join(', ')}</p>
       ))}
 
-      {parsed.skills?.length > 0 && (
+      {jobs.length > 0 && <h4>Work Experience</h4>}
+      {jobs.map((exp, i) => entry(exp, i, false))}
+
+      {projects.length > 0 && <h4>Project Experience</h4>}
+      {projects.map((exp, i) => entry(exp, i, true))}
+
+      {parsed.certifications?.length > 0 && (
         <>
-          <h4>Skills</h4>
-          <p>{parsed.skills.join(', ')}</p>
+          <h4>Certifications</h4>
+          <ul>{parsed.certifications.map((cert) => <li key={cert}>{cert}</li>)}</ul>
         </>
       )}
     </article>
@@ -116,7 +153,7 @@ export default function Download() {
     );
   }
 
-  const parsed = data.resume.parsed;
+  const parsed = exportedResume(data);
 
   return (
     <AppShell active="analyses" back={`/results/${analysisId}/improve`}>

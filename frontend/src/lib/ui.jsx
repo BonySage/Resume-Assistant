@@ -186,7 +186,7 @@ export function Steps({ current, analysisId }) {
     ['Resume', '/dashboard'],
     ['Job posting', '/job'],
     ['Match results', base],
-    ['Improve', base && `${base}/improve`],
+    ['Improve', base && `${base}/tailor`],
     ['Export', base && `${base}/export`],
   ];
   return (

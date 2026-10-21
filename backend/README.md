@@ -11,7 +11,8 @@ orchestration, and PDF export.
 - FR-1.2 Login: bcrypt or argon2 hashing, JWT issued on login, 15-minute
   inactivity timeout
 - FR-2.1 Resume upload: PDF or DOCX only (checked by file signature), max 10 MB.
-  The file is parsed in memory and not kept; its text and structure go in the database
+  The file is parsed in memory, never written to disk, and saved in the database
+  with its text and structure so the owner can open it (`GET /api/resumes/:id/file`)
 - FR-2.2 Resume parsing: extract text and split into contact info, summary,
   experience, education, skills; store in the database
 - FR-3.1 / 3.2 Job posting input: URL extraction with copy-paste fallback;

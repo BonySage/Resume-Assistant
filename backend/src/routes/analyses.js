@@ -4,12 +4,24 @@ import { requireAuth } from '../middleware/auth.js';
 import { computeMatch } from '../lib/atsMatch.js';
 import { generateBulletOptions, validateOptions, findUnsupportedClaims, hasPlaceholder } from '../lib/bulletEnhance.js';
 import { cleanText } from '../lib/validators.js';
-import { renderResumePdf } from '../lib/generatePdf.js';
+import { renderResumePdf, skillGroupsOf } from '../lib/generatePdf.js';
+import { tailorResume } from '../lib/tailorResume.js';
 
 const router = Router();
 router.use(requireAuth);
 
 const MAX_BULLET_LENGTH = 300; // matches the editor's limit on the improve page
+const MAX_TAILORED_BULLET_LENGTH = 400; // matches the editor's limit on the tailor page
+const MAX_SKILLS = 100;
+const MAX_SKILL_LENGTH = 60;
+
+// Missing, then weak, keywords. The analysis stores them lowercased, so map
+// each back to the job's own spelling ("JavaScript") for the AI to use.
+function keywordsToAdd(analysis, jobKeywords) {
+  return [...(analysis.missing_critical || []), ...(analysis.missing_secondary || []), ...(analysis.weak_keywords || [])].map(
+    (k) => jobKeywords.find((orig) => orig.toLowerCase().trim() === k) || k
+  );
+}
 
 function serializeAnalysis(row) {
   return {
@@ -23,13 +35,18 @@ function serializeAnalysis(row) {
     missingSecondary: row.missing_secondary,
     weakKeywords: row.weak_keywords,
     recommendations: row.recommendations,
+    tailoredSkills: row.tailored_skills, // [{ category, items }], null until a tailored resume is saved
     error: row.error,
     createdAt: row.created_at,
   };
 }
 
 async function ownedResume(id, userId) {
-  const { rows } = await query('SELECT * FROM resumes WHERE id = $1 AND user_id = $2', [id, userId]);
+  // Skip file_data (the uploaded file, up to 10 MB); nothing here needs it.
+  const { rows } = await query(
+    'SELECT id, user_id, original_filename, extracted_text, parsed_data FROM resumes WHERE id = $1 AND user_id = $2',
+    [id, userId]
+  );
   return rows[0];
 }
 async function ownedJobPosting(id, userId) {
@@ -143,6 +160,8 @@ router.post('/:id/bullets/:bulletId/generate', async (req, res) => {
       bulletText: found.bullet.text,
       jobTitle: jobPosting.title,
       jobRequirements: jobKeywords,
+      // Same picks as the "Job keywords this could show" chips in BulletImprove.jsx.
+      targetKeywords: keywordsToAdd(analysis, jobKeywords).slice(0, 3),
       resumeEvidence: resume.extracted_text.slice(0, 6000),
     });
     options = validateOptions(raw, { resumeText: resume.extracted_text, originalBullet: found.bullet.text, jobKeywords });
@@ -237,6 +256,93 @@ router.post('/:id/bullets/:bulletId/select', async (req, res) => {
   res.json({ suggestion: serializeSuggestion(rows[0]) });
 });
 
+// Whole-resume tailoring: the 3 versions generated earlier, if any.
+router.get('/:id/tailor', async (req, res) => {
+  const analysis = await ownedAnalysis(req.params.id, req.user.id);
+  if (!analysis) return res.status(404).json({ error: 'Analysis not found.' });
+  res.json({ versions: analysis.tailored_options });
+});
+
+// Whole-resume tailoring: ask the AI for 3 versions of the skills list and
+// every experience/project bullet, each covering all missing keywords.
+router.post('/:id/tailor', async (req, res) => {
+  const analysis = await ownedAnalysis(req.params.id, req.user.id);
+  if (!analysis) return res.status(404).json({ error: 'Analysis not found.' });
+  const resume = await ownedResume(analysis.resume_id, req.user.id);
+  const jobPosting = await ownedJobPosting(analysis.job_posting_id, req.user.id);
+  if (!resume.parsed_data) {
+    return res.status(422).json({ error: 'This resume could not be structured for tailoring. Try re-uploading it.' });
+  }
+
+  const jobKeywords = [...(jobPosting.required_skills?.critical || []), ...(jobPosting.required_skills?.secondary || [])];
+  let versions;
+  try {
+    versions = await tailorResume({
+      parsed: resume.parsed_data,
+      resumeText: resume.extracted_text,
+      jobTitle: jobPosting.title,
+      jobKeywords,
+      targetKeywords: keywordsToAdd(analysis, jobKeywords),
+    });
+  } catch (err) {
+    return res.status(502).json({ error: err.message || 'The AI service is unavailable right now.' });
+  }
+
+  await query('UPDATE analyses SET tailored_options = $1 WHERE id = $2', [JSON.stringify(versions), analysis.id]);
+  res.status(201).json({ versions });
+});
+
+// Save the tailored resume the user picked and edited. Bullets go into
+// bullet_suggestions (same as one-at-a-time edits), so export picks them up.
+router.put('/:id/tailored', async (req, res) => {
+  const analysis = await ownedAnalysis(req.params.id, req.user.id);
+  if (!analysis) return res.status(404).json({ error: 'Analysis not found.' });
+  const resume = await ownedResume(analysis.resume_id, req.user.id);
+
+  const { skillGroups, bullets } = req.body || {};
+  if (!Array.isArray(skillGroups) || !Array.isArray(bullets)) {
+    return res.status(400).json({ error: 'Send the skills and the bullets to save.' });
+  }
+  const oneLine = (s) => cleanText(s).replace(/\s+/g, ' ');
+  const cleanGroups = skillGroups
+    .map((g) => ({ category: oneLine(g?.category), items: [...new Set((Array.isArray(g?.items) ? g.items : []).map(oneLine).filter(Boolean))] }))
+    .filter((g) => g.items.length);
+  const allSkills = cleanGroups.flatMap((g) => [g.category, ...g.items]);
+  if (cleanGroups.flatMap((g) => g.items).length > MAX_SKILLS || allSkills.some((s) => s.length > MAX_SKILL_LENGTH)) {
+    return res.status(400).json({ error: `Keep the skills to ${MAX_SKILLS} skills of up to ${MAX_SKILL_LENGTH} characters each.` });
+  }
+
+  const ids = [];
+  const originals = [];
+  const selected = [];
+  for (const b of bullets) {
+    const found = findBullet(resume, b?.id);
+    if (!found) return res.status(400).json({ error: 'One of the bullets isn’t on this resume. Reload the page and try again.' });
+    const text = cleanText(b.text).replace(/\s+/g, ' ');
+    if (!text) return res.status(400).json({ error: 'A bullet can’t be empty.', bulletId: b.id });
+    if (text.length > MAX_TAILORED_BULLET_LENGTH) {
+      return res.status(400).json({ error: `Keep each bullet under ${MAX_TAILORED_BULLET_LENGTH} characters.`, bulletId: b.id });
+    }
+    ids.push(found.bullet.id);
+    originals.push(found.bullet.text);
+    selected.push(text === found.bullet.text ? null : text); // unchanged = keep the original
+  }
+
+  if (ids.length) {
+    await query(
+      `INSERT INTO bullet_suggestions (analysis_id, bullet_id, original_text, selected_text)
+       SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[])
+       ON CONFLICT (analysis_id, bullet_id) DO UPDATE SET selected_text = EXCLUDED.selected_text, selected_index = NULL`,
+      [analysis.id, ids, originals, selected]
+    );
+  }
+  const { rows } = await query('UPDATE analyses SET tailored_skills = $1 WHERE id = $2 RETURNING *', [
+    JSON.stringify(cleanGroups),
+    analysis.id,
+  ]);
+  res.json({ analysis: serializeAnalysis(rows[0]) });
+});
+
 // FR-6.1: export the resume with selected bullet improvements applied.
 router.get('/:id/export', async (req, res) => {
   const analysis = await ownedAnalysis(req.params.id, req.user.id);
@@ -253,7 +359,11 @@ router.get('/:id/export', async (req, res) => {
   const baseName = resume.original_filename.replace(/\.(pdf|docx)$/i, '');
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${baseName}-updated.pdf"`);
-  renderResumePdf({ resume: { ...resume.parsed_data, originalFilename: baseName }, bulletOverrides: overrides }, res);
+  // Tailored skills (category groups, or a flat list from older saves) replace the originals.
+  const tailored = analysis.tailored_skills ? { skillGroups: skillGroupsOf({ skillGroups: analysis.tailored_skills }) } : {};
+  const jobPosting = await ownedJobPosting(analysis.job_posting_id, req.user.id);
+  const boldTerms = [...(jobPosting?.required_skills?.critical || []), ...(jobPosting?.required_skills?.secondary || [])];
+  renderResumePdf({ resume: { ...resume.parsed_data, ...tailored, originalFilename: baseName }, bulletOverrides: overrides, boldTerms }, res);
 });
 
 export default router;

@@ -46,6 +46,8 @@ export const api = {
   // Resumes
   listResumes: () => request('/resumes'),
   getResume: (id) => request(`/resumes/${id}`),
+  // The original uploaded file: PDFs open in the browser, DOCX downloads.
+  resumeFileUrl: (id) => `${BASE}/resumes/${id}/file`,
   // XHR (not fetch) so we get real upload progress events. Pass an AbortSignal to cancel.
   uploadResumeWithProgress: (file, onProgress, signal) =>
     new Promise((resolve, reject) => {
@@ -114,6 +116,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  // Whole-resume tailoring: 3 AI versions side by side, then save the edited pick.
+  getTailoredVersions: (analysisId) => request(`/analyses/${analysisId}/tailor`),
+  // The server allows the AI 60s; stop waiting shortly after that.
+  generateTailoredVersions: async (analysisId) => {
+    try {
+      return await request(`/analyses/${analysisId}/tailor`, { method: 'POST', signal: AbortSignal.timeout(70_000) });
+    } catch (err) {
+      if (err.name === 'TimeoutError') throw new Error('The AI service took too long to respond.');
+      if (err instanceof TypeError) throw new Error('We couldn’t reach the server. Check your connection.');
+      throw err;
+    }
+  },
+  saveTailoredResume: (analysisId, body) =>
+    request(`/analyses/${analysisId}/tailored`, { method: 'PUT', body: JSON.stringify(body) }),
 
   // Export: fetch the generated PDF and hand it to the browser under the chosen file name.
   exportUrl: (analysisId) => `${BASE}/analyses/${analysisId}/export`,

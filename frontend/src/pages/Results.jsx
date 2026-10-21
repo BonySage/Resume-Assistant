@@ -63,7 +63,7 @@ export default function Results() {
               <h1 style={{ marginTop: 6 }}>{job.title || 'Job posting'} {job.company && <em>· {job.company}</em>}</h1>
               <p className="muted">Compared with <strong>{resume.filename}</strong> · <Link to={`/job?resume=${resume.id}`}>Change job</Link></p>
             </div>
-            {bullets.length > 0 && <Link className="btn btn-primary btn-lg" to={improveHref}><Icon name="sparkles" />Improve bullets</Link>}
+            {bullets.length > 0 && <Link className="btn btn-primary btn-lg" to={`/results/${a.id}/tailor`}><Icon name="sparkles" />Tailor my resume</Link>}
           </div>
 
           <div className="grid-main-wide">
@@ -112,6 +112,12 @@ export default function Results() {
             </div>
 
             <div className="stack" style={{ '--gap': '24px' }}>
+              {job.summary && (
+                <section className="card" aria-labelledby="job-summary-title">
+                  <h2 id="job-summary-title" className="row" style={{ gap: 10 }}><Icon name="info" />About this job</h2>
+                  <p style={{ marginTop: 12 }}>{job.summary}</p>
+                </section>
+              )}
               <section className="card panel-violet" aria-labelledby="rec-title">
                 <h2 id="rec-title" className="row" style={{ gap: 10 }}><Icon name="zap" />Recommendations</h2>
                 <ol style={{ margin: '14px 0 0', paddingLeft: 22, display: 'grid', gap: 10 }}>
@@ -122,7 +128,7 @@ export default function Results() {
               <section className="card" aria-labelledby="bul-title">
                 <div className="card-head">
                   <h2 id="bul-title">Your bullets</h2>
-                  <span className="caption">Select one to improve</span>
+                  <span className="caption">Or fine-tune just one</span>
                 </div>
                 {bullets.length === 0 ? (
                   <p className="small muted">We didn’t find any experience bullets on this resume, so there’s nothing to rewrite yet.</p>
@@ -143,7 +149,7 @@ export default function Results() {
                         ))}
                       </div>
                     </fieldset>
-                    <Link className="btn btn-primary btn-block" to={improveHref} style={{ marginTop: 16 }}><Icon name="sparkles" />Improve selected bullet</Link>
+                    <Link className="btn btn-secondary btn-block" to={improveHref} style={{ marginTop: 16 }}><Icon name="pencil" />Improve selected bullet</Link>
                   </>
                 )}
               </section>

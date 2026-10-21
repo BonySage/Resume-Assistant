@@ -266,7 +266,10 @@ export default function Dashboard() {
                             <div className="file-cell">
                               <span className="file-ico" data-kind={kind}>{kind.toUpperCase()}</span>
                               <div>
-                                {r.filename}
+                                {r.hasFile
+                                  ? <a className="file-link" href={api.resumeFileUrl(r.id)} target="_blank" rel="noopener noreferrer"
+                                      data-tip={kind === 'pdf' ? 'Open resume' : 'Download resume'}>{r.filename}</a>
+                                  : <span data-tip="Uploaded before files were saved. Upload it again to view it.">{r.filename}</span>}
                                 {r.parseError && (
                                   <div className="row-note"><Icon name="info" className="icon-sm" /><span>We couldn’t read its sections. Upload a PDF exported from Word or Google Docs so we can read the text.</span></div>
                                 )}

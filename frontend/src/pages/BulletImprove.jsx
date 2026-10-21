@@ -121,6 +121,8 @@ export default function BulletImprove() {
 
   const jobKeywords = [...(job.requiredSkills?.critical || []), ...(job.requiredSkills?.secondary || [])];
   const missing = [...(a.missingCritical || []), ...(a.missingSecondary || [])];
+  // The AI is told to include all of these in every option; keep in sync with
+  // targetKeywords in backend/src/routes/analyses.js.
   const fits = [...missing, ...(a.weakKeywords || [])].slice(0, 3);
   const flagKeyword = (text) => missing.find((k) => containsKeyword(text, k));
 

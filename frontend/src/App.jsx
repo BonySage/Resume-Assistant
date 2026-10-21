@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import JobPosting from './pages/JobPosting.jsx';
 import Results from './pages/Results.jsx';
 import BulletImprove from './pages/BulletImprove.jsx';
+import TailorResume from './pages/TailorResume.jsx';
 import Download from './pages/Download.jsx';
 import Done from './pages/Done.jsx';
 import Settings from './pages/Settings.jsx';
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/dashboard" element={<P><Dashboard /></P>} />
           <Route path="/job" element={<P><JobPosting /></P>} />
           <Route path="/results/:analysisId" element={<P><Results /></P>} />
+          <Route path="/results/:analysisId/tailor" element={<P><TailorResume /></P>} />
           <Route path="/results/:analysisId/improve" element={<P><BulletImprove /></P>} />
           <Route path="/results/:analysisId/export" element={<P><Download /></P>} />
           <Route path="/results/:analysisId/done" element={<P><Done /></P>} />

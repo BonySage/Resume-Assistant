@@ -11,8 +11,9 @@ const ALLOWED_MIME = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
-// The file is only needed long enough to extract its text, so it stays in
-// memory and is never written to disk. Export rebuilds the PDF from parsed_data.
+// The file stays in memory (never written to disk) and is saved in the
+// database so the user can open their original. Export still rebuilds the
+// PDF from parsed_data.
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // FR-2.1: max 10MB
@@ -47,28 +48,56 @@ function serializeResume(row, { includeParsed = false } = {}) {
     sizeBytes: row.size_bytes,
     createdAt: row.created_at,
     parseError: row.parse_error,
+    hasFile: row.has_file,
     ...resumeCounts(row.parsed_data), // shown on the dashboard ("Ready · 14 bullets")
   };
   if (includeParsed) out.parsed = row.parsed_data;
   return out;
 }
 
+// Every column except file_data, which can be up to 10 MB per row and is only
+// read by the /file route.
+const RESUME_COLUMNS = `id, user_id, original_filename, mime_type, size_bytes, created_at, parsed_data,
+  parse_error, file_data IS NOT NULL AS has_file`;
+
 // FR-2.1 + list for the Resume Upload Dashboard
 router.get('/', async (req, res) => {
   const { rows } = await query(
-    'SELECT * FROM resumes WHERE user_id = $1 ORDER BY id DESC',
+    `SELECT ${RESUME_COLUMNS} FROM resumes WHERE user_id = $1 ORDER BY id DESC`,
     [req.user.id]
   );
   res.json({ resumes: rows.map((r) => serializeResume(r)) });
 });
 
 router.get('/:id', async (req, res) => {
-  const { rows } = await query('SELECT * FROM resumes WHERE id = $1 AND user_id = $2', [
+  const { rows } = await query(`SELECT ${RESUME_COLUMNS} FROM resumes WHERE id = $1 AND user_id = $2`, [
     req.params.id,
     req.user.id,
   ]);
   if (!rows[0]) throw notFound('Resume not found.');
   res.json({ resume: serializeResume(rows[0], { includeParsed: true }) });
+});
+
+// The original uploaded file. PDFs open in the browser; DOCX can't be shown
+// inline, so it downloads. ?download=1 forces a download for either.
+router.get('/:id/file', async (req, res) => {
+  const { rows } = await query(
+    'SELECT original_filename, mime_type, file_data FROM resumes WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.user.id]
+  );
+  if (!rows[0]) throw notFound('Resume not found.');
+  const { original_filename: filename, mime_type: mimeType, file_data: data } = rows[0];
+  if (!data) throw notFound('The original file isn’t available for this resume. Upload it again to view it.', { code: 'FILE_NOT_STORED' });
+
+  const inline = mimeType === 'application/pdf' && !req.query.download;
+  res.set({
+    'Content-Type': mimeType,
+    'Content-Length': data.length,
+    'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, no-store',
+  });
+  res.send(data);
 });
 
 const UNREADABLE = "We couldn't read any text from that file. Try a different PDF or DOCX."; // NFR-4.1
@@ -107,8 +136,8 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 
   const { rows } = await query(
-    `INSERT INTO resumes (user_id, original_filename, mime_type, size_bytes, extracted_text, parsed_data, parse_error)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    `INSERT INTO resumes (user_id, original_filename, mime_type, size_bytes, extracted_text, parsed_data, parse_error, file_data)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING ${RESUME_COLUMNS}`,
     [
       req.user.id,
       originalname,
@@ -117,6 +146,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       text,
       parsedData ? JSON.stringify(parsedData) : null,
       parseError,
+      buffer,
     ]
   );
   res.status(201).json({ resume: serializeResume(rows[0], { includeParsed: true }) });

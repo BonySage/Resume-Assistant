@@ -14,6 +14,7 @@ function serialize(row) {
     title: row.title,
     company: row.company,
     description: row.description,
+    summary: row.summary,
     requiredSkills: row.required_skills, // { critical: [string], secondary: [string] }
     responsibilities: row.responsibilities,
     createdAt: row.created_at,
@@ -68,8 +69,8 @@ router.post('/', async (req, res) => {
 
   const requiredSkills = { critical: parsed.requiredSkills || [], secondary: parsed.secondarySkills || [] };
   const { rows } = await query(
-    `INSERT INTO job_postings (user_id, source_url, raw_text, title, company, description, required_skills, responsibilities)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    `INSERT INTO job_postings (user_id, source_url, raw_text, title, company, description, summary, required_skills, responsibilities)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
     [
       req.user.id,
       sourceUrl,
@@ -77,6 +78,7 @@ router.post('/', async (req, res) => {
       parsed.title || null,
       parsed.company || null,
       parsed.description || rawText.slice(0, 4000),
+      parsed.summary || null,
       JSON.stringify(requiredSkills),
       JSON.stringify(parsed.responsibilities || []),
     ]
