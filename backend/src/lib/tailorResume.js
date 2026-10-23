@@ -73,15 +73,23 @@ async function generateVersion(style, { parsed, resumeText, jobTitle, jobKeyword
           'You tailor a whole resume to a target job: you rewrite its skills list and every experience and project ' +
           'bullet. Use the facts in the resume evidence. Never invent an employer, project, outcome, or metric.\n\n' +
           'Rules:\n' +
-          '- Every target keyword must appear in the skills section, and at least once in the bullet where it fits best, ' +
-          'spelled as given. Spread them across bullets; do not cram them all into one. The user reviews the result ' +
-          'and unsupported keywords are flagged for them.\n' +
-          '- Keep the resume’s skill categories and every original skill unless it is a duplicate. Add a new category ' +
-          'only if a keyword fits none of the existing ones.\n' +
+          '- Every target keyword must appear at least once in the bullet where it fits best, spelled as given, and ' +
+          'every technical keyword must also appear in the skills section: ATS systems weigh keywords used in context ' +
+          'more. Spread them across bullets; do not cram them all into one. The user reviews the result and ' +
+          'unsupported keywords are flagged for them.\n' +
+          '- Soft skills (communication, collaboration, problem-solving, stakeholders, requirements, fast-paced) go ' +
+          'into bullets only, never into the skills section, and never as their own skills category.\n' +
+          '- Keep the resume’s skill categories and every original skill unless it is a duplicate. Keep the section ' +
+          'compact (about 5 categories). Add a new category only if a keyword fits none of the existing ones.\n' +
           '- Return one rewritten bullet for every bullet id, in the same order, with the id copied exactly.\n' +
-          '- If a number would help but none is in the evidence, write a placeholder like [X%] or [number].\n' +
+          '- Write bullets in the Google XYZ style: "Accomplished [X], as measured by [Y], by doing [Z]."\n' +
+          '- Use only numbers that appear in the evidence. If the Y part needs a figure the evidence lacks, write a ' +
+          'placeholder like [X%] or [number], or write the bullet without one.\n' +
           '- Start each bullet with a strong action verb. Keep each to one line, under about 35 words.\n' +
-          '- Bullets are only the bullet text: no notes or parenthetical comments to the user.\n' +
+          '- Every bullet is a full sentence ending with a period, never a semicolon, comma, or nothing. Skill items ' +
+          'take no trailing period.\n' +
+          '- Describe past employers and roles positively; never write anything that reads as criticism of them.\n' +
+          '- Bullets are only plain bullet text: no markdown, no notes or parenthetical comments to the user.\n' +
           `- Style for this version: ${style.focus}`,
         messages: [
           {
@@ -104,10 +112,17 @@ async function generateVersion(style, { parsed, resumeText, jobTitle, jobKeyword
   return readJsonOutput(message, 'resume');
 }
 
+// One punctuation style for every bullet: drop stray markdown bold and
+// trailing ; , : and end with a period. Mixed endings read as sloppy.
+export function endWithPeriod(text) {
+  const t = text.replace(/\*\*/g, '').trim().replace(/[\s;,:]+$/, '');
+  return !t || /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
 // Fits one AI version onto the resume's real bullet ids (a missing or unknown
 // id falls back to the original text) and flags claims the resume doesn't back.
 function shapeVersion(style, raw, { parsed, resumeText, jobKeywords }) {
-  const rewritten = new Map((raw.bullets || []).filter((b) => b && typeof b.text === 'string').map((b) => [b.id, b.text.trim()]));
+  const rewritten = new Map((raw.bullets || []).filter((b) => b && typeof b.text === 'string').map((b) => [b.id, endWithPeriod(b.text)]));
   const evidence = `${resumeText}\n${(parsed.skills || []).join(', ')}`;
   // A flagged keyword like "Generative AI" also yields name flags for its
   // capitalized words ("Generative", "Processing-based"); keep only the keyword itself.
