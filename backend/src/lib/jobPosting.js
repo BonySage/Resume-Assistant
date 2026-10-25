@@ -1,4 +1,7 @@
 import * as cheerio from 'cheerio';
+import dns from 'node:dns';
+import ipaddr from 'ipaddr.js';
+import { Agent, fetch as undiciFetch } from 'undici';
 import { getClient, PARSE_MODEL, friendlyAiError, readJsonOutput } from './aiClient.js';
 
 const URL_FETCH_TIMEOUT_MS = 10_000; // NFR-1.2

@@ -41,8 +41,8 @@ cd Resume-Assistant
 # Build the frontend for production
 npm run build
 
-# 1. Backend secrets
-cp backend/.env.example backend/.env   # set JWT_SECRET and ANTHROPIC_API_KEY
+# 1. Secrets for Docker Compose (root .env, not backend/.env)
+cp compose.env.example .env            # set POSTGRES_ADMIN_PASSWORD, APP_DB_PASSWORD, JWT_SECRET, ANTHROPIC_API_KEY
 
 # 2. Docker creates the single database and applies migrations automatically
 docker compose up -d --build           # API on http://localhost:3000

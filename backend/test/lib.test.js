@@ -9,6 +9,7 @@ import { fetchJobPostingText, isPublicAddress } from '../src/lib/jobPosting.js';
 import { cleanText } from '../src/lib/validators.js';
 import { friendlyAiError, readJsonOutput } from '../src/lib/aiClient.js';
 import { findUnsupportedClaims, validateOptions, hasPlaceholder } from '../src/lib/bulletEnhance.js';
+import { computeMatch } from '../src/lib/atsMatch.js';
 
 const PDF = 'application/pdf';
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
