@@ -166,7 +166,139 @@ describe('config', () => {
     assert.equal(warnings.length, 2);
   });
 
+  // Audit #1: the JWT secret signs every session; a value copied from a
+  // public template lets anyone forge a login for any user id.
+  test('development refuses a JWT secret copied from the example env files', () => {
+    for (const jwtSecret of [
+      'change-me-to-a-unique-random-secret-at-least-32-characters', // compose.env.example
+      'change-me-to-a-long-random-string', // backend/.env.example
+      'your-key-here',
+      'secret',
+    ]) {
+      assert.equal(checkConfig({ ...base, jwtSecret }).errors.length, 1, jwtSecret);
+    }
+  });
+
+  test('development warns (but still starts) with a short JWT secret', () => {
+    const { errors, warnings } = checkConfig({ ...base, jwtSecret: 'my-own-short-secret' });
+    assert.equal(errors.length, 0);
+    assert.ok(warnings.some((w) => /JWT_SECRET/.test(w)));
+  });
+
+  test('development accepts a long random JWT secret without warnings', () => {
+    const { errors, warnings } = checkConfig({ ...base, jwtSecret: 'f3a9c1d7e2b84a6f9c0d1e2f3a4b5c6d' });
+    assert.equal(errors.length, 0);
+    assert.equal(warnings.length, 0);
+  });
+
+  // Audit #4: behind a proxy without TRUST_PROXY every user shares the
+  // proxy's IP, so one attacker exhausts the login limit for everyone.
+  test('production warns when TRUST_PROXY is not set', () => {
+    const prod = { ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32' };
+    assert.ok(checkConfig({ ...prod, trustProxy: false }).warnings.some((w) => /TRUST_PROXY/.test(w)));
+    assert.ok(!checkConfig({ ...prod, trustProxy: 1 }).warnings.some((w) => /TRUST_PROXY/.test(w)));
+    assert.ok(!checkConfig({ ...base, trustProxy: false }).warnings.some((w) => /TRUST_PROXY/.test(w)), 'not in development');
+  });
+
   test('a missing DATABASE_URL is an error', () => {
     assert.equal(checkConfig({ ...base, databaseUrl: undefined }).errors.length, 1);
+  });
+});
+
+// Audit #4: the IP-based login limit doesn't stop guessing spread over many
+// IPs, so failed logins are also limited per email address. Limiters are off
+// in tests, so this runs the factory directly with limiting switched on.
+describe('per-email login limit', () => {
+  let api;
+  before(async () => {
+    const { loginEmailRateLimit } = await import('../src/routes/auth.js');
+    const app = express();
+    app.set('trust proxy', true); // let each request pick its IP via X-Forwarded-For
+    app.use(express.json());
+    app.post('/login', loginEmailRateLimit({ limit: 3, skip: () => false }), (req, res) => {
+      if (req.body.password === 'right') return res.json({ ok: true });
+      res.status(401).json({ error: 'Invalid email or password.' });
+    });
+    api = await serve(app);
+  });
+  after(() => api.close());
+
+  let ip = 0;
+  const login = (email, password) => api.call('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `203.0.113.${++ip}` }, // a new IP every time
+    body: JSON.stringify({ email, password }),
+  });
+
+  test('blocks an email after too many failed attempts, even from different IPs', async () => {
+    for (let i = 0; i < 3; i++) assert.equal((await login('victim@example.com', 'guess')).status, 401);
+    const blocked = await login('victim@example.com', 'guess');
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.body.code, 'RATE_LIMITED');
+  });
+
+  test('the limit is per email and ignores letter case', async () => {
+    assert.equal((await login('VICTIM@example.com', 'guess')).status, 429);
+    assert.equal((await login('someone-else@example.com', 'guess')).status, 401);
+  });
+
+  test('successful logins do not count toward the limit', async () => {
+    for (let i = 0; i < 5; i++) assert.equal((await login('regular@example.com', 'right')).status, 200);
+    assert.equal((await login('regular@example.com', 'guess')).status, 401);
+  });
+});
+
+// Everyone behind one shared IP (campus Wi-Fi, an office, a proxy) used to
+// share 10 sign-in/sign-up requests per 15 minutes, successful ones included,
+// so the 11th person to log in was locked out. Login now only counts failures
+// per IP; sign-up still counts every attempt (no bulk account creation), and
+// the two no longer share a counter.
+describe('per-IP login and sign-up limits', () => {
+  // A fresh app per test, so each starts with empty counters. Same IP for all requests.
+  async function makeApp() {
+    const { loginIpRateLimit, signupIpRateLimit } = await import('../src/routes/auth.js');
+    const app = express();
+    app.use(express.json());
+    const on = { limit: 3, skip: () => false };
+    app.post('/signup', signupIpRateLimit(on), (req, res) => res.status(201).json({ ok: true }));
+    app.post('/login', loginIpRateLimit(on), (req, res) =>
+      req.body.password === 'right' ? res.json({ ok: true }) : res.status(401).json({ error: 'Invalid email or password.' }));
+    return serve(app);
+  }
+  const post = (api, path, body) => api.call(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  test('successful logins from one IP are never blocked', async () => {
+    const api = await makeApp();
+    for (let i = 0; i < 8; i++) {
+      assert.equal((await post(api, '/login', { email: `student${i}@example.com`, password: 'right' })).status, 200, `login ${i + 1}`);
+    }
+    await api.close();
+  });
+
+  test('failed logins from one IP are still blocked after the limit', async () => {
+    const api = await makeApp();
+    for (let i = 0; i < 3; i++) assert.equal((await post(api, '/login', { email: `x${i}@example.com`, password: 'guess' })).status, 401);
+    const blocked = await post(api, '/login', { email: 'x9@example.com', password: 'guess' });
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.body.code, 'RATE_LIMITED');
+    await api.close();
+  });
+
+  test('sign-ups still count every attempt, so accounts cannot be created in bulk', async () => {
+    const api = await makeApp();
+    for (let i = 0; i < 3; i++) assert.equal((await post(api, '/signup', { email: `new${i}@example.com` })).status, 201);
+    assert.equal((await post(api, '/signup', { email: 'new9@example.com' })).status, 429);
+    await api.close();
+  });
+
+  test('sign-ups and logins have separate counters', async () => {
+    const api = await makeApp();
+    for (let i = 0; i < 4; i++) await post(api, '/signup', { email: `new${i}@example.com` }); // uses up sign-ups
+    assert.equal((await post(api, '/login', { email: 'student@example.com', password: 'right' })).status, 200);
+    await api.close();
   });
 });

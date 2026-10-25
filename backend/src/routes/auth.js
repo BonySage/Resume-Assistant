@@ -3,23 +3,60 @@ import bcrypt from 'bcryptjs';
 import { query, withAuthEmailContext } from '../db.js';
 import { signToken, requireAuth, COOKIE_OPTIONS } from '../middleware/auth.js';
 import { isValidEmail, passwordStrengthError } from '../lib/validators.js';
-import { rateLimit } from 'express-rate-limit';
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 
 const router = Router();
-const authRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === 'test',
-  message: { error: 'Too many sign-in attempts. Try again in 15 minutes.', code: 'RATE_LIMITED' },
-});
+
+// Per-IP limits. Many people can share one IP (campus Wi-Fi, an office), so
+// login only counts failed attempts: successful logins never lock anyone out.
+// Sign-up counts every attempt, so accounts can't be created in bulk. The two
+// keep separate counters.
+function ipRateLimit({ limit, skip, skipSuccessfulRequests }) {
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    skip,
+    skipSuccessfulRequests,
+    message: { error: 'Too many sign-in attempts. Try again in 15 minutes.', code: 'RATE_LIMITED' },
+  });
+}
+export function loginIpRateLimit({ limit = 10, skip = () => process.env.NODE_ENV === 'test' } = {}) {
+  return ipRateLimit({ limit, skip, skipSuccessfulRequests: true });
+}
+export function signupIpRateLimit({ limit = 10, skip = () => process.env.NODE_ENV === 'test' } = {}) {
+  return ipRateLimit({ limit, skip, skipSuccessfulRequests: false });
+}
+
+// The per-IP limit above doesn't stop guessing spread across many IPs, so failed
+// logins are also counted per email. Successful logins don't count, so the
+// real owner who knows the password is never locked out by their own use.
+export function loginEmailRateLimit({ limit = 10, skip = () => process.env.NODE_ENV === 'test' } = {}) {
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    skip,
+    skipSuccessfulRequests: true,
+    keyGenerator: (req) => {
+      const email = req.body?.email;
+      return typeof email === 'string' && email ? `email:${email.toLowerCase()}` : ipKeyGenerator(req.ip);
+    },
+    message: { error: 'Too many failed sign-in attempts for this account. Try again in 15 minutes.', code: 'RATE_LIMITED' },
+  });
+}
+
+// Same cost (12) as real password hashes; created once, on first use.
+let dummyHashPromise;
+const dummyHash = () => (dummyHashPromise ??= bcrypt.hash('not-a-real-account-password', 12));
 
 function publicUser(u) {
   return { id: u.id, email: u.email };
 }
 
-router.post('/signup', authRateLimit, async (req, res) => {
+router.post('/signup', signupIpRateLimit(), async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
@@ -49,7 +86,7 @@ router.post('/signup', authRateLimit, async (req, res) => {
   res.status(201).json({ user: publicUser(user) });
 });
 
-router.post('/login', authRateLimit, async (req, res) => {
+router.post('/login', loginIpRateLimit(), loginEmailRateLimit(), async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
@@ -59,9 +96,10 @@ router.post('/login', authRateLimit, async (req, res) => {
     query('SELECT * FROM users WHERE email = $1', [normalizedEmail])
   );
   const user = rows[0];
-  if (!user) return res.status(401).json({ error: 'Invalid email or password.' });
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) return res.status(401).json({ error: 'Invalid email or password.' });
+  // Run bcrypt even for an unknown email, so the response time doesn't reveal
+  // which emails have accounts.
+  const ok = await bcrypt.compare(String(password), user ? user.password_hash : await dummyHash());
+  if (!user || !ok) return res.status(401).json({ error: 'Invalid email or password.' });
   res.cookie('token', signToken(user), COOKIE_OPTIONS);
   res.json({ user: publicUser(user) });
 });

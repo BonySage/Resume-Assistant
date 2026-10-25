@@ -75,7 +75,7 @@ For Docker, set values in the root `.env` (see [compose.env.example](compose.env
 | `MIGRATION_DATABASE_URL` | Privileged Postgres connection used only for migrations and provisioning the runtime DB role. |
 | `APP_DB_PASSWORD` | Password for the restricted `resume_app` runtime role. |
 | `CLIENT_ORIGIN` | Frontend URL allowed by CORS. |
-| `TRUST_PROXY` | Set only behind a trusted proxy; configures forwarded IP/protocol handling. |
+| `TRUST_PROXY` | Set when the API runs behind a proxy or load balancer (e.g. `1` for one hop). Without it, every user shares the proxy's IP for rate limiting, so one attacker can lock everyone out of login. Leave `false` when clients connect directly. |
 | `PORT` | API port (default `3000`). |
 
 The frontend reads `VITE_API_BASE_URL` (see [frontend/.env.example](frontend/.env.example)). You don't need it for local dev because Vite proxies `/api`.

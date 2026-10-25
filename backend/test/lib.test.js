@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import Anthropic from '@anthropic-ai/sdk';
 import { matchesFileSignature, extractResumeText } from '../src/lib/parseResume.js';
 import { fetchJobPostingText, isPublicAddress } from '../src/lib/jobPosting.js';
-import { cleanText } from '../src/lib/validators.js';
+import { cleanText, isValidEmail, passwordStrengthError } from '../src/lib/validators.js';
 import { friendlyAiError, readJsonOutput } from '../src/lib/aiClient.js';
 import { findUnsupportedClaims, validateOptions, hasPlaceholder } from '../src/lib/bulletEnhance.js';
 import { computeMatch } from '../src/lib/atsMatch.js';
@@ -157,5 +157,40 @@ describe('readJsonOutput', () => {
     assert.throws(() => readJsonOutput(msg('', 'refusal'), 'resume'), /couldn’t process this resume/);
     assert.throws(() => readJsonOutput(msg('{"ti', 'max_tokens'), 'resume'), /too long/);
     assert.throws(() => readJsonOutput(msg('not json'), 'resume'), /unreadable answer/);
+  });
+});
+
+
+describe('isValidEmail (FR-1.1)', () => {
+  test('accepts ordinary addresses', () => {
+    for (const email of ['a@b.co', 'first.last+tag@uni.example.edu']) assert.equal(isValidEmail(email), true, email);
+  });
+
+  test('rejects malformed input and non-strings', () => {
+    for (const email of ['not-an-email', 'a@b', '@b.com', 'a @b.com', 'a@b .com', '', null, 42]) {
+      assert.equal(isValidEmail(email), false, String(email));
+    }
+  });
+});
+
+describe('passwordStrengthError (FR-1.1)', () => {
+  test('accepts 8+ characters with upper, lower and a number', () => {
+    assert.equal(passwordStrengthError('Passw0rd'), null);
+  });
+
+  test('explains each missing rule', () => {
+    assert.match(passwordStrengthError('Pa1'), /at least 8/);
+    assert.match(passwordStrengthError('password1'), /uppercase and lowercase/);
+    assert.match(passwordStrengthError('PASSWORD1'), /uppercase and lowercase/);
+    assert.match(passwordStrengthError('Password'), /number/);
+    assert.match(passwordStrengthError(undefined), /at least 8/);
+  });
+
+  // Audit #8: bcrypt ignores everything after 72 bytes, so a longer password
+  // would silently match any password sharing its first 72 bytes.
+  test('rejects passwords longer than bcrypt can use (72 bytes)', () => {
+    assert.equal(passwordStrengthError('Aa1' + 'x'.repeat(69)), null); // exactly 72
+    assert.match(passwordStrengthError('Aa1' + 'x'.repeat(70)), /too long/); // 73
+    assert.match(passwordStrengthError('Aa1' + 'é'.repeat(35)), /too long/); // 38 chars but 73 bytes
   });
 });

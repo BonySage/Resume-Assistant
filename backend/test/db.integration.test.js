@@ -154,6 +154,33 @@ describe('database integration', { skip: ADMIN_URL ? false : 'set TEST_DATABASE_
       assert.equal(me.body.user.email, 'alice@example.com');
     });
 
+    // Audit #7: without a bcrypt check for unknown emails, the fast answer
+    // revealed which emails have accounts.
+    test('an unknown email takes about as long as a wrong password', async () => {
+      const timeLogin = async (email) => {
+        const start = performance.now();
+        const res = await api.call('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+          body: JSON.stringify({ email, password: 'Wr0ngPassword' }),
+        });
+        assert.equal(res.status, 401);
+        assert.equal(res.body.error, 'Invalid email or password.');
+        return performance.now() - start;
+      };
+      const median = (xs) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+      const wrongPassword = [];
+      const unknownEmail = [];
+      for (let i = 0; i < 3; i++) {
+        wrongPassword.push(await timeLogin('alice@example.com'));
+        unknownEmail.push(await timeLogin(`nobody-${i}@example.com`));
+      }
+      assert.ok(
+        median(unknownEmail) > median(wrongPassword) * 0.5,
+        `unknown email ${median(unknownEmail).toFixed(0)}ms vs wrong password ${median(wrongPassword).toFixed(0)}ms`
+      );
+    });
+
     test('a wrong password is rejected', async () => {
       const res = await api.call('/api/auth/login', {
         method: 'POST',

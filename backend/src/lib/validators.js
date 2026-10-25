@@ -28,5 +28,9 @@ export function passwordStrengthError(password) {
   if (!/[0-9]/.test(password)) {
     return 'Password must include at least one number.';
   }
+  // bcrypt only uses the first 72 bytes; anything longer would be silently cut off.
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    return 'Password is too long. Use at most 72 characters (fewer if it has accents or emoji).';
+  }
   return null;
 }

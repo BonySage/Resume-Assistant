@@ -8,6 +8,8 @@ const env = process.env;
 const nodeEnv = env.NODE_ENV || 'development';
 const isProduction = nodeEnv === 'production';
 const DEV_JWT_SECRET = 'dev-only-insecure-secret-change-me';
+// Values that come from (or look like) the example env files.
+const PLACEHOLDER_SECRET_RE = /^(change-me|your-key|secret|password|replace|example|test)/i;
 
 export const config = {
   env: nodeEnv,
@@ -41,11 +43,16 @@ export function checkConfig(c = config) {
     !c.jwtSecret ||
     c.jwtSecret === DEV_JWT_SECRET ||
     c.jwtSecret.length < 32 ||
-    /^(change-me|your-key|secret|password|replace|example|test)/i.test(c.jwtSecret)
+    PLACEHOLDER_SECRET_RE.test(c.jwtSecret)
   )) {
     errors.push('JWT_SECRET must be a unique random value of at least 32 characters in production.');
   } else if (c.jwtSecret === DEV_JWT_SECRET) {
     warnings.push('JWT_SECRET is not set — using an insecure development secret.');
+  } else if (!c.isTest && PLACEHOLDER_SECRET_RE.test(c.jwtSecret)) {
+    // The example values are public, so anyone could sign a session for any user.
+    errors.push('JWT_SECRET is still the example value from an .env template. Replace it with a long random string (e.g. `openssl rand -hex 32`).');
+  } else if (!c.isTest && c.jwtSecret.length < 32) {
+    warnings.push('JWT_SECRET is shorter than 32 characters — use a long random string.');
   }
   if (c.isProduction && (
     !c.appDbPassword ||
@@ -53,6 +60,11 @@ export function checkConfig(c = config) {
     /^(replace|example|password|change-me|test)/i.test(c.appDbPassword)
   )) {
     errors.push('APP_DB_PASSWORD must be a unique random value of at least 32 characters in production.');
+  }
+  if (c.isProduction && !c.trustProxy) {
+    // Rate limits are per client IP. Behind a proxy without this, every user
+    // shares the proxy's IP, and one attacker can lock everyone out of login.
+    warnings.push('TRUST_PROXY is not set — if the API runs behind a proxy or load balancer, set it (e.g. TRUST_PROXY=1) so rate limits see real client IPs.');
   }
   const clientOrigins = c.clientOrigins || [];
   if (c.isProduction && (!clientOrigins.length || clientOrigins.some((origin) => !origin.startsWith('https://')))) {
