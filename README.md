@@ -67,7 +67,7 @@ For Docker, set values in the root `.env` (see [compose.env.example](compose.env
 
 | Variable | Purpose |
 |---|---|
-| `JWT_SECRET` | Signs login tokens. Use a long random string. |
+| `JWT_SECRET` | **Required.** Signs login tokens. Use a long random string, e.g. `openssl rand -hex 32`. The API won't start without one, or with a template value. Never put it in frontend settings. |
 | `ANTHROPIC_API_KEY` | Turns on job parsing and bullet rewrites. |
 | `ANTHROPIC_MODEL` | Claude model for bullet rewrites (default `claude-sonnet-5`). |
 | `ANTHROPIC_PARSE_MODEL` | Faster model for resume and job-posting parsing (default `claude-haiku-5-5`). |
@@ -94,7 +94,7 @@ The API uses the restricted `resume_app` database role for normal requests; the 
 
 ### Running the backend without Docker
 
-You need a Postgres instance and `DATABASE_URL` set in `backend/.env`. Replace the example `JWT_SECRET` with a long random string (e.g. `openssl rand -hex 32`); the API refuses to start with the template value:
+You need a Postgres instance and `DATABASE_URL` set in `backend/.env`. Replace the example `JWT_SECRET` with a long random string (e.g. `openssl rand -hex 32`); the API refuses to start without one or with the template value:
 
 ```bash
 cd backend

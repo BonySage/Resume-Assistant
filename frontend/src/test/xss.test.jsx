@@ -112,3 +112,31 @@ describe('XSS guards (source)', () => {
     expect(using(/javascript:/i)).toEqual([]);
   });
 });
+
+// Server secrets (the Anthropic key, JWT secret, database URLs) must never be
+// referenced by the frontend: anything in it ships to every visitor's browser.
+describe('secrets stay on the server (source)', () => {
+  const ROOT = path.resolve(__dirname, '..', '..');
+  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const SRC = path.resolve(__dirname, '..');
+  const files = (dir) => fs.readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? (e.name === 'test' ? [] : files(path.join(dir, e.name))) : /\.(jsx?|tsx?)$/.test(e.name) ? [path.join(dir, e.name)] : []));
+  const appCode = files(SRC).map((f) => fs.readFileSync(f, 'utf8')).join('\n') + read('vite.config.js') + read('index.html');
+
+  test('no server secret names, keys or AI endpoints in the frontend', () => {
+    for (const re of [/ANTHROPIC/i, /JWT_SECRET/, /DATABASE_URL/, /APP_DB_PASSWORD/, /sk-ant-/, /api\.anthropic\.com/, /x-api-key/i]) {
+      expect(appCode).not.toMatch(re);
+    }
+  });
+
+  test('only VITE_ settings can reach the browser', () => {
+    expect(read('vite.config.js')).toMatch(/loadEnv\(.*'VITE_'\)/);
+    expect(read('vite.config.js')).not.toMatch(/envPrefix/);
+    const exampleKeys = read('.env.example').split('\n').map((l) => l.replace(/^#\s*/, '').match(/^([A-Z_]+)=/)?.[1]).filter(Boolean);
+    expect(exampleKeys.every((k) => k.startsWith('VITE_'))).toBe(true);
+  });
+
+  test('the app reads settings via import.meta.env, never process.env', () => {
+    expect(files(SRC).map((f) => fs.readFileSync(f, 'utf8')).join('\n')).not.toMatch(/process\.env/);
+  });
+});

@@ -222,6 +222,29 @@ describe('database integration', { skip: ADMIN_URL ? false : 'set TEST_DATABASE_
       }
     });
 
+    test('the session token only travels in the HttpOnly cookie, never in a response body', async () => {
+      const res = await api.call('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        body: JSON.stringify({ email: 'alice@example.com', password: PASSWORD }),
+      });
+      const token = res.headers.get('set-cookie').match(/^token=([^;]+)/)[1];
+      assert.deepEqual(Object.keys(res.body), ['user']);
+      assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id']);
+      assert.ok(!JSON.stringify(res.body).includes(token));
+      const me = await api.call('/api/auth/me', { headers: { Cookie: `token=${token}` } });
+      assert.ok(!JSON.stringify(me.body).includes(token));
+      assert.ok(!JSON.stringify(me.body).includes('test-secret'));
+    });
+
+    test('a deleted user\'s old session token stops working', async () => {
+      const dave = await signup('dave@example.com');
+      const del = await api.call('/api/auth/me', { method: 'DELETE', headers: { Cookie: dave.cookie, Origin: ORIGIN } });
+      assert.equal(del.status, 200);
+      const reuse = await api.call('/api/resumes', { headers: { Cookie: dave.cookie } });
+      assert.equal(reuse.status, 401);
+    });
+
     test('a wrong password is rejected', async () => {
       const res = await api.call('/api/auth/login', {
         method: 'POST',

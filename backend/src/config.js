@@ -7,6 +7,7 @@ const env = process.env;
 
 const nodeEnv = env.NODE_ENV || 'development';
 const isProduction = nodeEnv === 'production';
+// Was the built-in fallback secret; it's public (in this repo), so it's refused.
 const DEV_JWT_SECRET = 'dev-only-insecure-secret-change-me';
 // Values that come from (or look like) the example env files.
 const PLACEHOLDER_SECRET_RE = /^(change-me|your-key|secret|password|replace|example|test)/i;
@@ -22,7 +23,8 @@ export const config = {
   databaseUrl: env.DATABASE_URL,
   migrationDatabaseUrl: env.MIGRATION_DATABASE_URL,
   appDbPassword: env.APP_DB_PASSWORD,
-  jwtSecret: env.JWT_SECRET || (isProduction ? '' : DEV_JWT_SECRET),
+  // No built-in fallback: a secret in the code is public, so anyone could sign sessions.
+  jwtSecret: env.JWT_SECRET || '',
   // Session cookie is HTTPS-only in production (NFR-2.2).
   cookieSecure: isProduction,
   anthropicApiKey: env.ANTHROPIC_API_KEY || '',
@@ -39,15 +41,10 @@ export function checkConfig(c = config) {
   const errors = [];
   const warnings = [];
   if (!c.databaseUrl) errors.push('DATABASE_URL is not set — see backend/.env.example.');
-  if (c.isProduction && (
-    !c.jwtSecret ||
-    c.jwtSecret === DEV_JWT_SECRET ||
-    c.jwtSecret.length < 32 ||
-    PLACEHOLDER_SECRET_RE.test(c.jwtSecret)
-  )) {
+  if (!c.jwtSecret || c.jwtSecret === DEV_JWT_SECRET) {
+    errors.push('JWT_SECRET is not set. Set it to a long random string (e.g. `openssl rand -hex 32`) in backend/.env or the root .env for Docker.');
+  } else if (c.isProduction && (c.jwtSecret.length < 32 || PLACEHOLDER_SECRET_RE.test(c.jwtSecret))) {
     errors.push('JWT_SECRET must be a unique random value of at least 32 characters in production.');
-  } else if (c.jwtSecret === DEV_JWT_SECRET) {
-    warnings.push('JWT_SECRET is not set — using an insecure development secret.');
   } else if (!c.isTest && PLACEHOLDER_SECRET_RE.test(c.jwtSecret)) {
     // The example values are public, so anyone could sign a session for any user.
     errors.push('JWT_SECRET is still the example value from an .env template. Replace it with a long random string (e.g. `openssl rand -hex 32`).');
@@ -74,4 +71,12 @@ export function checkConfig(c = config) {
     warnings.push('ANTHROPIC_API_KEY is not set — resume/job parsing and bullet generation will fail until it is configured.');
   }
   return { errors, warnings };
+}
+
+// Secrets are copied into `config` above. Once the server has started, remove
+// them from process.env so a library, crash reporter or child process that
+// reads or dumps the environment can't see them.
+const SECRET_ENV_VARS = ['JWT_SECRET', 'ANTHROPIC_API_KEY', 'DATABASE_URL', 'MIGRATION_DATABASE_URL', 'APP_DB_PASSWORD'];
+export function removeSecretsFromEnv() {
+  for (const name of SECRET_ENV_VARS) delete process.env[name];
 }

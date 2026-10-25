@@ -13,7 +13,7 @@ const { createApp } = await import('../src/app.js');
 const { pool } = await import('../src/db.js');
 const { errorHandler } = await import('../src/middleware/errorHandler.js');
 const { HttpError, notFound } = await import('../src/errors.js');
-const { checkConfig } = await import('../src/config.js');
+const { checkConfig, removeSecretsFromEnv } = await import('../src/config.js');
 
 // Start an app on a random port and return a fetch helper for it.
 async function serve(app) {
@@ -103,6 +103,46 @@ describe('API app', () => {
     assert.equal(body.code, 'SESSION_EXPIRED');
   });
 
+  // Forged or tampered sessions must be rejected before anything else runs.
+  // This suite has no database, so a token that got past the signature check
+  // would show up as a 500 (the user lookup failing) instead of a 401.
+  describe('JWT session tokens', () => {
+    const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+    const asSession = (token) => api.call('/api/resumes', { headers: { Cookie: `token=${token}` } });
+    const rejected = async (token, label) => {
+      const { status, body } = await asSession(token);
+      assert.equal(status, 401, `${label}: got ${status}`);
+      assert.equal(body.code, 'NO_SESSION', label);
+    };
+
+    test('a token signed with a different secret is rejected', async () => {
+      await rejected(jwt.sign({ sub: 1 }, 'some-other-secret', { expiresIn: '5m' }), 'wrong secret');
+    });
+
+    test('a token signed with the old public dev secret is rejected', async () => {
+      await rejected(jwt.sign({ sub: 1 }, 'dev-only-insecure-secret-change-me', { expiresIn: '5m' }), 'public dev secret');
+    });
+
+    test('an unsigned token (alg "none") is rejected', async () => {
+      await rejected(`${b64({ alg: 'none', typ: 'JWT' })}.${b64({ sub: 1, exp: Math.floor(Date.now() / 1000) + 300 })}.`, 'alg none');
+    });
+
+    test('only HS256 is accepted, even with the right secret', async () => {
+      for (const algorithm of ['HS384', 'HS512']) {
+        await rejected(jwt.sign({ sub: 1 }, 'test-secret', { algorithm, expiresIn: '5m' }), algorithm);
+      }
+    });
+
+    test('a token whose payload was edited (another user id) is rejected', async () => {
+      const [header, , signature] = jwt.sign({ sub: 1 }, 'test-secret', { expiresIn: '5m' }).split('.');
+      await rejected(`${header}.${b64({ sub: 2, exp: Math.floor(Date.now() / 1000) + 300 })}.${signature}`, 'tampered');
+    });
+
+    test('garbage tokens are rejected', async () => {
+      for (const token of ['', 'abc', 'a.b.c', '%00']) await rejected(token, JSON.stringify(token));
+    });
+  });
+
   test('a database outage behind auth is a 500, not a crash or a fake logout', async () => {
     const token = jwt.sign({ sub: 1 }, 'test-secret', { expiresIn: '5m' });
     const { status, body } = await api.call('/api/resumes', { headers: { Cookie: `token=${token}` } });
@@ -161,7 +201,7 @@ describe('error handler', () => {
 });
 
 describe('config', () => {
-  const base = { databaseUrl: 'postgres://x', jwtSecret: 'dev-only-insecure-secret-change-me', appDbPassword: 'a-real-database-password-with-32-chars', anthropicApiKey: 'k', isProduction: false, clientOrigins: ['https://app.example'] };
+  const base = { databaseUrl: 'postgres://x', jwtSecret: 'f3a9c1d7e2b84a6f9c0d1e2f3a4b5c6d', appDbPassword: 'a-real-database-password-with-32-chars', anthropicApiKey: 'k', isProduction: false, clientOrigins: ['https://app.example'] };
 
   test('production refuses to start without a real JWT secret', () => {
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: '' }).errors.length, 1);
@@ -175,10 +215,52 @@ describe('config', () => {
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: 'your-key-here-but-made-long-enough-32' }).errors.length, 1);
   });
 
-  test('development only warns about the dev secret and a missing AI key', () => {
+  test('development only warns about a missing AI key', () => {
     const { errors, warnings } = checkConfig({ ...base, anthropicApiKey: '' });
     assert.equal(errors.length, 0);
-    assert.equal(warnings.length, 2);
+    assert.equal(warnings.length, 1);
+  });
+
+  // The old fallback secret is written in the repo, so a server started
+  // without JWT_SECRET (e.g. NODE_ENV not set to "production") let anyone
+  // forge a session. Every mode except tests now needs a real secret.
+  test('no mode except tests starts without its own JWT secret', () => {
+    for (const isProduction of [false, true]) {
+      for (const jwtSecret of ['', undefined, 'dev-only-insecure-secret-change-me']) {
+        const { errors } = checkConfig({ ...base, isProduction, jwtSecret });
+        assert.equal(errors.length, 1, `${isProduction ? 'production' : 'development'} with ${JSON.stringify(jwtSecret)}`);
+        assert.match(errors[0], /JWT_SECRET/);
+      }
+    }
+  });
+
+  test('outside tests, config has no built-in JWT secret to fall back on', async () => {
+    const { execFile } = await import('node:child_process');
+    const run = (env) => new Promise((resolve) => {
+      execFile(process.execPath, ['--input-type=module', '-e', "const { config } = await import('./src/config.js'); console.log(JSON.stringify(config.jwtSecret))"],
+        { cwd: new URL('..', import.meta.url), env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, ...env } }, (err, stdout) => resolve(stdout.trim()));
+    });
+    assert.equal(await run({ NODE_ENV: 'development' }), '""');
+    assert.equal(await run({}), '""', 'NODE_ENV not set');
+    assert.equal(await run({ NODE_ENV: 'staging' }), '""');
+    assert.equal(await run({ NODE_ENV: 'development', JWT_SECRET: 'my-own-long-random-secret-value-123' }), '"my-own-long-random-secret-value-123"');
+  });
+
+  // Secrets are copied into config at startup; leaving them in process.env
+  // lets any library, crash reporter or child process read them.
+  test('secrets can be removed from process.env once config has them', () => {
+    const saved = { ...process.env };
+    try {
+      Object.assign(process.env, { JWT_SECRET: 's1', ANTHROPIC_API_KEY: 's2', MIGRATION_DATABASE_URL: 's3', APP_DB_PASSWORD: 's4', DATABASE_URL: 's5', PORT: '1234' });
+      removeSecretsFromEnv();
+      for (const k of ['JWT_SECRET', 'ANTHROPIC_API_KEY', 'MIGRATION_DATABASE_URL', 'APP_DB_PASSWORD', 'DATABASE_URL']) {
+        assert.equal(process.env[k], undefined, k);
+      }
+      assert.equal(process.env.PORT, '1234', 'non-secret settings stay');
+    } finally {
+      for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+      Object.assign(process.env, saved);
+    }
   });
 
   // Audit #1: the JWT secret signs every session; a value copied from a

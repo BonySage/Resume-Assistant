@@ -229,6 +229,14 @@ describe('friendlyAiError', () => {
     }
   });
 
+  test('an invalid-key error never shows the key', () => {
+    const key = 'sk-ant-api03-CANARYsecretvalue';
+    const authError = new Anthropic.AuthenticationError(401, { error: { type: 'authentication_error', message: `invalid x-api-key ${key}` } }, `invalid x-api-key ${key}`, new Headers());
+    const err = friendlyAiError(authError);
+    assert.doesNotMatch(err.message, /sk-ant|CANARY|x-api-key/);
+    assert.match(err.message, /not configured correctly/);
+  });
+
   test('API error bodies are not shown either', () => {
     const apiError = new Anthropic.BadRequestError(400, { error: { message: 'prompt is too long: 250000 tokens' } }, 'prompt is too long', new Headers());
     assert.doesNotMatch(friendlyAiError(apiError).message, /tokens|prompt/);
