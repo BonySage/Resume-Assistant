@@ -31,7 +31,8 @@ export function signupIpRateLimit({ limit = 10, skip = () => process.env.NODE_EN
 
 // The per-IP limit above doesn't stop guessing spread across many IPs, so failed
 // logins are also counted per email. Successful logins don't count, so the
-// real owner who knows the password is never locked out by their own use.
+// owner isn't locked out by their own use. Trade-off: anyone who makes 10 failed
+// attempts for an email does block that account's logins for the window.
 export function loginEmailRateLimit({ limit = 10, skip = () => process.env.NODE_ENV === 'test' } = {}) {
   return rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -41,8 +42,10 @@ export function loginEmailRateLimit({ limit = 10, skip = () => process.env.NODE_
     skip,
     skipSuccessfulRequests: true,
     keyGenerator: (req) => {
+      // Only well-formed emails get their own key, so arbitrary (e.g. 1 MB) strings
+      // can't be stored as keys; anything else is counted against the IP.
       const email = req.body?.email;
-      return typeof email === 'string' && email ? `email:${email.toLowerCase()}` : ipKeyGenerator(req.ip);
+      return isValidEmail(email) && email.length <= 254 ? `email:${email.toLowerCase()}` : ipKeyGenerator(req.ip);
     },
     message: { error: 'Too many failed sign-in attempts for this account. Try again in 15 minutes.', code: 'RATE_LIMITED' },
   });
@@ -88,7 +91,7 @@ router.post('/signup', signupIpRateLimit(), async (req, res) => {
 
 router.post('/login', loginIpRateLimit(), loginEmailRateLimit(), async (req, res) => {
   const { email, password } = req.body || {};
-  if (!email || !password) {
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
   const normalizedEmail = email.toLowerCase();
@@ -98,7 +101,7 @@ router.post('/login', loginIpRateLimit(), loginEmailRateLimit(), async (req, res
   const user = rows[0];
   // Run bcrypt even for an unknown email, so the response time doesn't reveal
   // which emails have accounts.
-  const ok = await bcrypt.compare(String(password), user ? user.password_hash : await dummyHash());
+  const ok = await bcrypt.compare(password, user ? user.password_hash : await dummyHash());
   if (!user || !ok) return res.status(401).json({ error: 'Invalid email or password.' });
   res.cookie('token', signToken(user), COOKIE_OPTIONS);
   res.json({ user: publicUser(user) });

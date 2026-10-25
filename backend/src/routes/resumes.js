@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { query } from '../db.js';
-import { badRequest, notFound, unprocessable } from '../errors.js';
+import { HttpError, badRequest, notFound, unprocessable } from '../errors.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireValidId } from '../middleware/idParam.js';
 import { extractResumeText, matchesFileSignature } from '../lib/parseResume.js';
 import { parseResumeStructure } from '../lib/parseResumeStructure.js';
+import { cleanFilename } from '../lib/validators.js';
 import { rateLimit } from 'express-rate-limit';
 
 const ALLOWED_MIME = new Set([
@@ -25,7 +27,10 @@ const uploadRateLimit = rateLimit({
 // memory and is never written to disk. Export rebuilds the PDF from parsed_data.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // FR-2.1: max 10MB
+  // FR-2.1: max 10MB. The app sends exactly one part (the file), so anything
+  // more (extra fields are otherwise unlimited, 1 MB each, held in memory) is refused.
+  limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 0, parts: 1 },
+  defParamCharset: 'utf8', // browsers send file names as UTF-8 ("Résumé.pdf"); multer's default is latin1
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {
       return cb(badRequest('Only PDF or DOCX files are supported.', { code: 'UNSUPPORTED_FILE_TYPE' }));
@@ -34,8 +39,19 @@ const upload = multer({
   },
 });
 
+// The upload parser throws plain Errors for a malformed or cut-off request
+// ("Malformed part header", "Unexpected end of form"). Those are the client's
+// fault, so answer 400 instead of letting them become a 500.
+function parseUpload(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (!err || err instanceof multer.MulterError || err instanceof HttpError) return next(err);
+    next(badRequest('That upload could not be read. Try again with a single PDF or DOCX file.', { code: 'MALFORMED_UPLOAD' }));
+  });
+}
+
 const router = Router();
 router.use(requireAuth);
+router.param('id', requireValidId('Resume not found.'));
 
 function resumeCounts(parsed) {
   if (!parsed) return { bulletCount: 0, sectionCount: 0 };
@@ -69,8 +85,10 @@ router.get('/', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * limit;
 
+  // Only what serializeResume needs: extracted_text can be large and the list never shows it.
   const { rows } = await query(
-    'SELECT * FROM resumes WHERE user_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3',
+    `SELECT id, original_filename, size_bytes, created_at, parse_error, parsed_data
+     FROM resumes WHERE user_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3`,
     [req.user.id, limit, offset]
   );
   const { rows: countRows } = await query(
@@ -96,7 +114,7 @@ router.get('/:id', async (req, res) => {
 const UNREADABLE = "We couldn't read any text from that file. Try a different PDF or DOCX."; // NFR-4.1
 
 // FR-2.1 upload + FR-2.2 automatic parsing
-router.post('/', uploadRateLimit, upload.single('file'), async (req, res) => {
+router.post('/', uploadRateLimit, parseUpload, async (req, res) => {
   if (!req.file) throw badRequest('No file uploaded.', { code: 'NO_FILE' });
   const { buffer, mimetype, originalname, size } = req.file;
 
@@ -112,6 +130,8 @@ router.post('/', uploadRateLimit, upload.single('file'), async (req, res) => {
   try {
     text = await extractResumeText(buffer, mimetype, originalname);
   } catch (err) {
+    // Our own size limit: the message is written for the user, so show it.
+    if (err.code === 'RESUME_TOO_LONG') throw unprocessable(err.message, { code: err.code });
     console.warn(`[resumes] text extraction failed for user ${req.user.id}: ${err.name || 'Error'}`);
     throw unprocessable(UNREADABLE, { code: 'UNREADABLE_FILE' });
   }
@@ -133,7 +153,7 @@ router.post('/', uploadRateLimit, upload.single('file'), async (req, res) => {
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
     [
       req.user.id,
-      originalname,
+      cleanFilename(originalname), // stored and shown later, so made safe first
       mimetype,
       size,
       text,

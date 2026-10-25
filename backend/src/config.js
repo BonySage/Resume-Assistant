@@ -57,7 +57,7 @@ export function checkConfig(c = config) {
   if (c.isProduction && (
     !c.appDbPassword ||
     c.appDbPassword.length < 32 ||
-    /^(replace|example|password|change-me|test)/i.test(c.appDbPassword)
+    PLACEHOLDER_SECRET_RE.test(c.appDbPassword)
   )) {
     errors.push('APP_DB_PASSWORD must be a unique random value of at least 32 characters in production.');
   }

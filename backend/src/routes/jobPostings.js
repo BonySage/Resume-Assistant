@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireValidId } from '../middleware/idParam.js';
 import { fetchJobPostingText, parseJobPostingText } from '../lib/jobPosting.js';
 import { cleanText } from '../lib/validators.js';
 import { rateLimit } from 'express-rate-limit';
 
 const router = Router();
 router.use(requireAuth);
+router.param('id', requireValidId('Job posting not found.'));
 const parseRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,

@@ -4,9 +4,16 @@ process.env.NODE_ENV = 'test';
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import Anthropic from '@anthropic-ai/sdk';
-import { matchesFileSignature, extractResumeText } from '../src/lib/parseResume.js';
+import PDFDocument from 'pdfkit';
+import { randomBytes } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { makeDocx } from './helpers/docx.js';
+import { MAX_DOCX_UNCOMPRESSED_BYTES, MAX_DOCX_ENTRIES, checkDocxArchive } from '../src/lib/docxLimits.js';
+import { matchesFileSignature, extractResumeText, MAX_RESUME_PAGES, MAX_RESUME_CHARS } from '../src/lib/parseResume.js';
 import { fetchJobPostingText, isPublicAddress } from '../src/lib/jobPosting.js';
-import { cleanText, isValidEmail, passwordStrengthError } from '../src/lib/validators.js';
+import { cleanText, isValidId, isValidEmail, passwordStrengthError, cleanFilename } from '../src/lib/validators.js';
 import { friendlyAiError, readJsonOutput } from '../src/lib/aiClient.js';
 import { findUnsupportedClaims, validateOptions, hasPlaceholder } from '../src/lib/bulletEnhance.js';
 import { computeMatch } from '../src/lib/atsMatch.js';
@@ -35,7 +42,119 @@ describe('extractResumeText', () => {
   test('a corrupt PDF with a valid header throws', async () => {
     await assert.rejects(extractResumeText(Buffer.from('%PDF-1.7\ngarbage'), PDF, 'cv.pdf'));
   });
+
+  // Audit #3: a 2.85 MB, 4,000-page PDF took 12.8s of CPU and produced ~3M
+  // tokens that were stored and sent to the AI. Real resumes are 1-3 pages.
+  test('extracts the text of a normal two-page resume', async () => {
+    const text = await extractResumeText(await makePdf(2, 'Built REST APIs in Node.js and PostgreSQL.'), PDF, 'cv.pdf');
+    assert.match(text, /Built REST APIs in Node\.js and PostgreSQL\./);
+  });
+
+  test(`rejects a PDF with more than ${MAX_RESUME_PAGES} pages before reading it`, async () => {
+    await assert.rejects(
+      extractResumeText(await makePdf(MAX_RESUME_PAGES + 1, 'Page'), PDF, 'cv.pdf'),
+      { code: 'RESUME_TOO_LONG', message: /pages/ }
+    );
+  });
+
+  test(`accepts exactly ${MAX_RESUME_PAGES} pages`, async () => {
+    const text = await extractResumeText(await makePdf(MAX_RESUME_PAGES, 'Page'), PDF, 'cv.pdf');
+    assert.ok(text.length > 0);
+  });
+
+  test(`rejects a resume with more than ${MAX_RESUME_CHARS.toLocaleString('en-US')} characters of text`, async () => {
+    const dense = 'Delivered measurable results across many projects. '.repeat(400); // ~20k chars per page
+    await assert.rejects(
+      extractResumeText(await makePdf(3, dense), PDF, 'cv.pdf'),
+      { code: 'RESUME_TOO_LONG', message: /too long/ }
+    );
+  });
 });
+
+// A DOCX is a ZIP. A "zip bomb" under the 10 MB upload limit can expand to
+// hundreds of MB, and mammoth used to unpack all of it before the 50,000-
+// character check ran. The archive is now checked first, by really
+// decompressing each entry under a hard cap (declared sizes can lie).
+describe('DOCX size limits (zip bombs)', () => {
+  const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const bombPadding = () => Buffer.alloc(MAX_DOCX_UNCOMPRESSED_BYTES * 2, ' '); // whitespace compresses ~1000:1
+
+  test('extracts the text of a normal DOCX', async () => {
+    const text = await extractResumeText(makeDocx('Built REST APIs in Node.js and PostgreSQL.'), DOCX_MIME, 'cv.docx');
+    assert.match(text, /Built REST APIs in Node\.js and PostgreSQL\./);
+  });
+
+  test('a DOCX with a large photo (5 MB) still works', async () => {
+    const photo = { name: 'word/media/photo.jpg', data: randomBytes(5 * 1024 * 1024), method: 0 };
+    const text = await extractResumeText(makeDocx('Jane Doe, Software Engineer', { extra: [photo] }), DOCX_MIME, 'cv.docx');
+    assert.match(text, /Jane Doe/);
+  });
+
+  test('rejects a zip bomb before unpacking it all', async () => {
+    const bomb = makeDocx('Hi', { padding: bombPadding() });
+    assert.ok(bomb.length < 1024 * 1024, `bomb is only ${bomb.length} bytes on disk`);
+    await assert.rejects(extractResumeText(bomb, DOCX_MIME, 'cv.docx'), { code: 'RESUME_TOO_LONG', message: /too large/ });
+  });
+
+  test('rejects a zip bomb whose headers lie about its size', async () => {
+    const liar = makeDocx('Hi', { padding: bombPadding(), documentEntry: { declaredSize: 1000 } });
+    await assert.rejects(extractResumeText(liar, DOCX_MIME, 'cv.docx'), { code: 'RESUME_TOO_LONG' });
+  });
+
+  test(`rejects an archive with more than ${MAX_DOCX_ENTRIES} files`, async () => {
+    const many = Array.from({ length: MAX_DOCX_ENTRIES + 1 }, (_, i) => ({ name: `word/x${i}.xml`, data: '<x/>' }));
+    await assert.rejects(extractResumeText(makeDocx('Hi', { extra: many }), DOCX_MIME, 'cv.docx'), { code: 'RESUME_TOO_LONG' });
+  });
+
+  // JSZip (inside mammoth) reads every central header it finds and follows
+  // ZIP64 / shifted offsets, so the check must not trust a smaller entry count.
+  test('rejects a zip bomb hidden behind an entry count that is too small', async () => {
+    const bomb = makeDocx('Hi', { padding: bombPadding() });
+    const eocd = bomb.length - 22;
+    bomb.writeUInt16LE(2, eocd + 8);
+    bomb.writeUInt16LE(2, eocd + 10); // word/document.xml (the bomb) is the 3rd entry
+    await assert.rejects(extractResumeText(bomb, DOCX_MIME, 'cv.docx'), { message: /Malformed DOCX/ });
+  });
+
+  test('rejects an archive that marks itself as ZIP64', async () => {
+    const zip = makeDocx('Hi');
+    zip.writeUInt32LE(0xffffffff, zip.length - 22 + 12); // central directory size
+    await assert.rejects(extractResumeText(zip, DOCX_MIME, 'cv.docx'), { code: 'RESUME_TOO_LONG' });
+  });
+
+  test('rejects an archive with data prepended (shifted offsets)', async () => {
+    const zip = Buffer.concat([Buffer.alloc(64), makeDocx('Hi')]);
+    await assert.rejects(extractResumeText(zip, DOCX_MIME, 'cv.docx'), { message: /Malformed DOCX/ });
+  });
+
+  // The stricter structure checks must not reject real documents. mammoth
+  // ships DOCX files made by Word and other editors with its own tests.
+  const realDocxDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'node_modules', 'mammoth', 'test', 'test-data');
+  test('real DOCX files from Word and other editors pass the archive check', { skip: !fs.existsSync(realDocxDir) && 'mammoth sample files not installed' }, () => {
+    const files = fs.readdirSync(realDocxDir).filter((f) => f.endsWith('.docx'));
+    assert.ok(files.length >= 10, `found ${files.length} sample files`);
+    for (const f of files) assert.doesNotThrow(() => checkDocxArchive(fs.readFileSync(path.join(realDocxDir, f))), f);
+  });
+
+  test('a truncated or fake ZIP is rejected as unreadable', async () => {
+    const fake = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('not really a zip file')]);
+    await assert.rejects(extractResumeText(fake, DOCX_MIME, 'cv.docx'));
+  });
+});
+
+// Builds a PDF in memory with `pages` pages, each holding `text`.
+function makePdf(pages, text) {
+  const doc = new PDFDocument({ size: 'LETTER', margins: { top: 20, bottom: 20, left: 20, right: 20 } });
+  const chunks = [];
+  doc.on('data', (c) => chunks.push(c));
+  const done = new Promise((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  for (let i = 0; i < pages; i++) {
+    if (i) doc.addPage();
+    doc.fontSize(4).text(text);
+  }
+  doc.end();
+  return done;
+}
 
 describe('cleanText', () => {
   test('keeps &, < and > verbatim (no HTML entity encoding)', () => {
@@ -95,6 +214,24 @@ describe('friendlyAiError', () => {
   test('timeouts and our own deadline abort say the AI took too long', () => {
     assert.match(friendlyAiError(new Anthropic.APIConnectionTimeoutError()).message, /took too long/);
     assert.match(friendlyAiError(new Anthropic.APIUserAbortError()).message, /took too long/);
+  });
+
+  // Audit #9: errors without an HTTP status were passed through unchanged,
+  // so internal messages reached the user (and resumes.parse_error).
+  test('internal errors never reach the user verbatim', () => {
+    for (const internal of [
+      new TypeError("Cannot read properties of undefined (reading 'content')"),
+      new Anthropic.AnthropicError('Missing required parameter: model at /app/backend/src/lib/x.js'),
+    ]) {
+      const err = friendlyAiError(internal);
+      assert.match(err.message, /AI service/);
+      assert.doesNotMatch(err.message, /Cannot read|parameter|\/app\//);
+    }
+  });
+
+  test('API error bodies are not shown either', () => {
+    const apiError = new Anthropic.BadRequestError(400, { error: { message: 'prompt is too long: 250000 tokens' } }, 'prompt is too long', new Headers());
+    assert.doesNotMatch(friendlyAiError(apiError).message, /tokens|prompt/);
   });
 });
 
@@ -160,6 +297,17 @@ describe('readJsonOutput', () => {
   });
 });
 
+describe('isValidId', () => {
+  test('accepts positive integers in the Postgres INTEGER range', () => {
+    for (const id of ['1', '42', '2147483647']) assert.equal(isValidId(id), true, id);
+  });
+
+  test('rejects anything that cannot be a row id', () => {
+    for (const id of ['0', '-1', '1.5', '01', 'abc', '1 OR 1=1', '2147483648', '99999999999', '', ' 1', undefined, 5]) {
+      assert.equal(isValidId(id), false, String(id));
+    }
+  });
+});
 
 describe('isValidEmail (FR-1.1)', () => {
   test('accepts ordinary addresses', () => {
@@ -192,5 +340,30 @@ describe('passwordStrengthError (FR-1.1)', () => {
     assert.equal(passwordStrengthError('Aa1' + 'x'.repeat(69)), null); // exactly 72
     assert.match(passwordStrengthError('Aa1' + 'x'.repeat(70)), /too long/); // 73
     assert.match(passwordStrengthError('Aa1' + 'é'.repeat(35)), /too long/); // 38 chars but 73 bytes
+  });
+});
+
+describe('cleanFilename', () => {
+  test('keeps normal and accented names unchanged', () => {
+    assert.equal(cleanFilename('Résumé – Zoë 2026.pdf'), 'Résumé – Zoë 2026.pdf');
+  });
+
+  test('removes control characters and turns line breaks and tabs into spaces', () => {
+    assert.equal(cleanFilename('cv\x07\x1b[31m\n-x\t.pdf'), 'cv[31m -x .pdf');
+  });
+
+  test('caps the length at 255 characters', () => {
+    assert.equal(cleanFilename('a'.repeat(400) + '.pdf').length, 255);
+  });
+
+  test('never cuts an emoji in half when shortening', () => {
+    const cut = cleanFilename('a'.repeat(254) + '\u{1F600}.pdf'); // the emoji would straddle character 255
+    assert.equal(cut, 'a'.repeat(254));
+    assert.doesNotMatch(cut, /[\uD800-\uDFFF]/, 'no lone surrogate');
+  });
+
+  test('an empty or unusable name becomes "resume"', () => {
+    assert.equal(cleanFilename('\x00\x07'), 'resume');
+    assert.equal(cleanFilename(undefined), 'resume');
   });
 });

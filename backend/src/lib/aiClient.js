@@ -57,5 +57,8 @@ export function friendlyAiError(err) {
   if (err?.status >= 500 || err instanceof Anthropic.APIConnectionError) {
     return new Error('The AI service is temporarily unavailable. Please try again shortly.');
   }
-  return err instanceof Error && !err.status ? err : new Error('The AI service is temporarily unavailable.');
+  // Anything else (SDK validation errors, bugs) has an internal message: log
+  // its type for debugging and give the user the generic one.
+  console.warn(`[ai] unexpected error: ${err?.name || 'Error'}${err?.status ? ` ${err.status}` : ''}`);
+  return new Error('The AI service is temporarily unavailable.');
 }

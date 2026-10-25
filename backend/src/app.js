@@ -34,7 +34,12 @@ export function createApp() {
   app.set('trust proxy', config.trustProxy);
 
   if (!config.isTest) app.use(requestLogger);
-  app.use(helmet({ contentSecurityPolicy: false }));
+  // The API only returns JSON and PDF downloads, never a page, so its CSP
+  // allows nothing: even if a response were opened as a page, no script in
+  // user text could run, and it can't be framed. (The frontend has its own CSP.)
+  app.use(helmet({
+    contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+  }));
   app.use(cors({
     origin(origin, callback) {
       callback(null, Boolean(origin && config.clientOrigins.includes(origin)));

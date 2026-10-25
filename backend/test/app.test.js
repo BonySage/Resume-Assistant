@@ -42,6 +42,19 @@ describe('API app', () => {
     assert.deepEqual({ ok: body.ok, db: body.db }, { ok: false, db: 'down' });
   });
 
+  // XSS: text a user controls (here, the URL) is echoed back only as JSON,
+  // which browsers never run, and a strict CSP means nothing could run even if
+  // an API response were ever rendered as a page.
+  test('a script in the URL comes back as inert JSON with no-script headers', async () => {
+    const { status, body, headers } = await api.call('/api/%3Cscript%3Ealert(1)%3C%2Fscript%3E');
+    assert.equal(status, 404);
+    assert.match(headers.get('content-type'), /^application\/json/);
+    assert.equal(typeof body, 'object');
+    assert.equal(headers.get('x-content-type-options'), 'nosniff');
+    assert.match(headers.get('content-security-policy') || '', /default-src 'none'/);
+    assert.match(headers.get('content-security-policy') || '', /frame-ancestors 'none'/);
+  });
+
   test('unknown API routes return a JSON 404', async () => {
     const { status, body } = await api.call('/api/does-not-exist');
     assert.equal(status, 404);
@@ -158,6 +171,8 @@ describe('config', () => {
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32' }).errors.length, 0);
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: 'replace-with-sample-password-at-least-32' }).errors.length, 1);
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: '' }).errors.length, 1);
+    // APP_DB_PASSWORD uses the same placeholder list as JWT_SECRET.
+    assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: 'your-key-here-but-made-long-enough-32' }).errors.length, 1);
   });
 
   test('development only warns about the dev secret and a missing AI key', () => {
@@ -240,6 +255,17 @@ describe('per-email login limit', () => {
   test('the limit is per email and ignores letter case', async () => {
     assert.equal((await login('VICTIM@example.com', 'guess')).status, 429);
     assert.equal((await login('someone-else@example.com', 'guess')).status, 401);
+  });
+
+  // Arbitrary strings (e.g. 1 MB) must not become keys in the in-memory store.
+  test('values that are not real emails are counted against the IP instead', async () => {
+    const fromOneIp = (email) => api.call('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '198.51.100.7' },
+      body: JSON.stringify({ email, password: 'guess' }),
+    });
+    for (const junk of ['junk-1', 'x'.repeat(5000), 'junk-3']) assert.equal((await fromOneIp(junk)).status, 401);
+    assert.equal((await fromOneIp('junk-4')).status, 429, 'all junk values share the IP bucket');
   });
 
   test('successful logins do not count toward the limit', async () => {

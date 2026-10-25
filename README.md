@@ -94,7 +94,7 @@ The API uses the restricted `resume_app` database role for normal requests; the 
 
 ### Running the backend without Docker
 
-You need a Postgres instance and `DATABASE_URL` set in `backend/.env`:
+You need a Postgres instance and `DATABASE_URL` set in `backend/.env`. Replace the example `JWT_SECRET` with a long random string (e.g. `openssl rand -hex 32`); the API refuses to start with the template value:
 
 ```bash
 cd backend
