@@ -38,3 +38,35 @@ This document is a manual QA testing checklist. Before submitting the final proj
 ## 6. PDF Export (`/done`)
 - [ ] **Rebuilt PDF:** Click "Export PDF". The downloaded file should be a clean, rebuilt PDF containing the *new* selected bullets instead of the old ones.
 - [ ] **Formatting:** Ensure the name, contact info, and section headers (Experience, Skills, Education) are correctly formatted and aligned in the exported PDF.
+
+---
+
+# 🤖 Automated Tests
+
+Run these before every commit. CI runs all of them on every pull request.
+
+| Suite | Command | Needs a database? |
+|---|---|---|
+| Backend unit + HTTP tests | `cd backend && npm test` | No |
+| Backend database integration tests (`backend/test/db.integration.test.js`) | `cd backend && npm test` with `TEST_DATABASE_ADMIN_URL` set | Yes |
+| Frontend unit tests | `cd frontend && npm test` | No |
+| Frontend lint / build | `cd frontend && npm run lint && npm run build` | No |
+
+## Database integration tests
+
+These run the real migrations against Postgres and check login plus the row-level security policies (migration 007): one user must never read, change, or delete another user's data, both at the SQL level and through the API.
+
+Without `TEST_DATABASE_ADMIN_URL` they are **skipped** locally (and **fail** in CI, so they can't be skipped by accident). To run them, start a **throwaway** Postgres on a separate port:
+
+```bash
+docker run -d --rm --name resume-test-db -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:55432:5432 postgres:16
+
+cd backend
+TEST_DATABASE_ADMIN_URL=postgres://postgres:postgres@127.0.0.1:55432/postgres npm test
+
+docker stop resume-test-db   # deletes it (--rm)
+```
+
+On Windows PowerShell, set the variable with `$env:TEST_DATABASE_ADMIN_URL = "postgres://postgres:postgres@127.0.0.1:55432/postgres"` and then run `npm test`.
+
+> ⚠️ Don't point this at the `docker compose` database or production. Each run creates and drops its own `resume_test_*` database, but the migration also resets the password of the server-wide `resume_app` role.
