@@ -19,12 +19,12 @@ function normalize(err) {
 }
 
 // Last middleware in the chain: every error ends up here as { error, code? }.
-// Unexpected errors are logged with details but shown to the user as a plain 500.
+// Unexpected errors are logged using identifiers only and shown as a plain 500.
 // eslint-disable-next-line no-unused-vars -- Express needs the 4-argument signature.
 export function errorHandler(err, req, res, next) {
   const known = normalize(err);
   if (!known) {
-    console.error(`[error] ${req.method} ${req.originalUrl}`, err);
+    console.error(`[error] ${req.method} ${req.path} ${err?.name || 'Error'} ${err?.code || 'UNEXPECTED'}`);
   }
   const status = known?.status || 500;
   const body = {

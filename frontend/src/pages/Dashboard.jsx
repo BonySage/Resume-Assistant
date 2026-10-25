@@ -21,13 +21,36 @@ function DropArt() {
   );
 }
 
+function PaginationControls({ label, pagination, onPageChange }) {
+  if (!pagination || pagination.pages < 2) return null;
+  return (
+    <nav className="row-between" aria-label={`${label} pagination`} style={{ marginTop: 14 }}>
+      <span className="small muted">Page {pagination.page} of {pagination.pages} · {pagination.total} total</span>
+      <div className="row">
+        <button className="btn btn-secondary btn-sm" type="button" disabled={pagination.page <= 1}
+          aria-label={`Previous ${label.toLowerCase()} page`} onClick={() => onPageChange(pagination.page - 1)}>
+          <Icon name="arrow-left" />Previous
+        </button>
+        <button className="btn btn-secondary btn-sm" type="button" disabled={pagination.page >= pagination.pages}
+          aria-label={`Next ${label.toLowerCase()} page`} onClick={() => onPageChange(pagination.page + 1)}>
+          Next<Icon name="arrow-right" />
+        </button>
+      </div>
+    </nav>
+  );
+}
+
 export default function Dashboard() {
   const { displayName } = useAuth();
   const { toast, confirm } = useUI();
   const location = useLocation();
   const [resumes, setResumes] = useState(null);
+  const [resumePagination, setResumePagination] = useState(null);
+  const [resumePage, setResumePage] = useState(1);
   const [analyses, setAnalyses] = useState([]);
-  const [jobs, setJobs] = useState({});
+  const [analysisPagination, setAnalysisPagination] = useState(null);
+  const [analysisPage, setAnalysisPage] = useState(1);
+  const [latestAnalysis, setLatestAnalysis] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [drag, setDrag] = useState(false);
@@ -37,16 +60,22 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [r, a, j] = await Promise.all([api.listResumes(), api.listAnalyses(), api.listJobPostings()]);
+      const [r, a, latest] = await Promise.all([
+        api.listResumes({ page: resumePage, limit: 20 }),
+        api.listAnalyses({ page: analysisPage, limit: 20 }),
+        api.listAnalyses({ page: 1, limit: 1 }),
+      ]);
       setResumes(r.resumes);
+      setResumePagination(r.pagination);
       setAnalyses(a.analyses);
-      setJobs(Object.fromEntries(j.jobPostings.map((p) => [p.id, p])));
+      setAnalysisPagination(a.pagination);
+      setLatestAnalysis(latest.analyses[0] || null);
       setLoadError('');
     } catch (err) {
       setLoadError(err.message);
       setResumes((cur) => cur || []);
     }
-  }, []);
+  }, [resumePage, analysisPage]);
 
   useEffect(() => {
     document.title = 'Dashboard · Forma';
@@ -62,9 +91,9 @@ export default function Dashboard() {
   }, [location.hash]);
 
   const ready = (resumes || []).filter((r) => !r.parseError);
-  const latest = analyses[0];
-  const latestJob = latest && jobs[latest.jobPostingId];
-  const best = analyses.length ? Math.max(...analyses.map((a) => a.score ?? 0)) : null;
+  const readyCount = resumePagination?.readyTotal ?? ready.length;
+  const latest = latestAnalysis;
+  const best = analysisPagination ? analysisPagination.bestScore : null;
   const first = displayName.split(' ')[0];
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -89,7 +118,8 @@ export default function Dashboard() {
         ctrl.signal
       );
       setUpload({ phase: 'done', resume });
-      load();
+      if (resumePage !== 1) setResumePage(1);
+      else load();
     } catch (err) {
       if (err.name === 'AbortError') return;
       setUpload({ phase: 'error', title: 'We couldn’t upload that resume', text: err.message });
@@ -115,7 +145,8 @@ export default function Dashboard() {
     try {
       await api.deleteResume(r.id);
       toast(`Deleted ${r.filename}`, { icon: 'trash' });
-      load();
+      if (resumes.length === 1 && resumePage > 1) setResumePage(resumePage - 1);
+      else load();
     } catch (err) {
       toast(err.message, { icon: 'x-circle' });
     }
@@ -133,7 +164,7 @@ export default function Dashboard() {
               <p className="eyebrow">{today}</p>
               <h1 id="welcome-title">Welcome back, <em>{first}</em> <span aria-hidden="true" className="wave">✦</span></h1>
               <p>
-                {ready.length
+                {readyCount
                   ? 'Your newest resume is ready. Compare it with a job posting to see your match score.'
                   : 'Upload your resume to get started. Then compare it with a job posting to see your match score.'}
               </p>
@@ -145,8 +176,8 @@ export default function Dashboard() {
             {latest && (
               <div className="banner-art" aria-hidden="true">
                 <div className="glass-card">
-                  <span className="eyebrow">Last match{latestJob?.company ? ` · ${latestJob.company}` : ''}</span>
-                  <ScoreRing value={latest.score ?? 0} className="ring-sm" />
+                  <span className="eyebrow">Last match{latest.company ? ` · ${latest.company}` : ''}</span>
+                  <ScoreRing value={latest.score} className="ring-sm" />
                 </div>
               </div>
             )}
@@ -155,8 +186,8 @@ export default function Dashboard() {
           {loadError && <div style={{ marginBottom: 20 }}><Alert tone="error" role="alert" title="We couldn’t load your dashboard">{loadError}</Alert></div>}
 
           <div className="tiles" aria-label="Your activity">
-            <div className="tile"><span className="tile-ico"><Icon name="file" /></span><div><div className="n">{ready.length}</div><div className="l">Resumes ready</div></div></div>
-            <div className="tile coral"><span className="tile-ico"><Icon name="target" /></span><div><div className="n">{analyses.length}</div><div className="l">Jobs analyzed</div></div></div>
+            <div className="tile"><span className="tile-ico"><Icon name="file" /></span><div><div className="n">{readyCount}</div><div className="l">Resumes ready</div></div></div>
+            <div className="tile coral"><span className="tile-ico"><Icon name="target" /></span><div><div className="n">{analysisPagination?.total ?? analyses.length}</div><div className="l">Jobs analyzed</div></div></div>
             <div className="tile mint"><span className="tile-ico"><Icon name="trend" /></span><div><div className="n">{best === null ? '—' : `${best}%`}</div><div className="l">Best match score</div></div></div>
           </div>
 
@@ -246,7 +277,7 @@ export default function Dashboard() {
               <section className="card" aria-labelledby="resumes-title">
                 <div className="card-head">
                   <h2 id="resumes-title">My resumes <span className="count">{resumes ? resumes.length : '…'}</span></h2>
-                  <span className="caption">Sorted by newest</span>
+                  <span className="caption">{resumePagination ? `Page ${resumePagination.page} of ${Math.max(1, resumePagination.pages)} · ${resumePagination.total} total` : 'Sorted by newest'}</span>
                 </div>
                 <table className="table">
                   <caption className="visually-hidden">Your uploaded resumes</caption>
@@ -295,6 +326,7 @@ export default function Dashboard() {
                     })}
                   </tbody>
                 </table>
+                <PaginationControls label="Resume" pagination={resumePagination} onPageChange={setResumePage} />
               </section>
             </div>
 
@@ -302,8 +334,8 @@ export default function Dashboard() {
               <section className="card" id="analyses" aria-labelledby="analyses-title" tabIndex={-1} ref={analysesRef}>
                 <div className="card-head">
                   <h2 id="analyses-title">Recent analyses</h2>
-                  {analyses.length > 5 && (
-                    <button className="link-btn small" type="button" onClick={() => setShowAll((s) => !s)}>{showAll ? 'Show fewer' : 'View all'}</button>
+                  {(analysisPagination?.total ?? analyses.length) > 5 && (
+                    <button className="link-btn small" type="button" onClick={() => { setShowAll((s) => !s); setAnalysisPage(1); }}>{showAll ? 'Show fewer' : 'View all'}</button>
                   )}
                 </div>
                 {analyses.length === 0 ? (
@@ -311,16 +343,15 @@ export default function Dashboard() {
                 ) : (
                   <ul className="list">
                     {visibleAnalyses.map((a) => {
-                      const j = jobs[a.jobPostingId];
                       return (
                         <li key={a.id}>
                           <Link className="analysis-item" to={`/results/${a.id}`}>
                             <span>
-                              <strong>{jobLabel(j)}</strong>
-                              <span className="small muted">{[j?.company, fmtDate(a.createdAt)].filter(Boolean).join(' · ')}</span>
+                              <strong>{jobLabel({ title: a.jobTitle })}</strong>
+                              <span className="small muted">{[a.company, fmtDate(a.createdAt)].filter(Boolean).join(' · ')}</span>
                             </span>
                             <span className="mini-score">
-                              <span className="n">{a.score}<span className="small">%</span></span>
+                              <span className="n">{a.score == null ? '—' : <>{a.score}<span className="small">%</span></>}</span>
                               <LevelBadge value={a.score} />
                             </span>
                           </Link>
@@ -329,13 +360,14 @@ export default function Dashboard() {
                     })}
                   </ul>
                 )}
+                {showAll && <PaginationControls label="Analysis" pagination={analysisPagination} onPageChange={setAnalysisPage} />}
               </section>
 
               <div className="alert alert-tip">
                 <Icon name="zap" />
                 <div className="alert-body">
                   <strong>Next step</strong>
-                  {ready.length
+                  {readyCount
                     ? <>Your newest resume is ready. Press <b>New analysis</b> to compare it with a job posting.</>
                     : <>Upload a PDF or DOCX resume above. We’ll pull out your sections and bullets automatically.</>}
                 </div>

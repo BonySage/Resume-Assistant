@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { query } from '../db.js';
+import { query, withUserContext } from '../db.js';
 import { config } from '../config.js';
 import { unauthorized } from '../errors.js';
 
@@ -37,11 +37,13 @@ export async function requireAuth(req, res, next) {
     throw unauthorized();
   }
   // Database errors are real outages (500), not "logged out" — let them reach the error handler.
-  const { rows } = await query('SELECT id, email FROM users WHERE id = $1', [payload.sub]);
+  const { rows } = await withUserContext(payload.sub, () =>
+    query('SELECT id, email FROM users WHERE id = $1', [payload.sub])
+  );
   const user = rows[0];
   if (!user) throw unauthorized();
   req.user = user;
   // Sliding expiry: reset the 15-minute inactivity window on every request.
   res.cookie('token', signToken(user), COOKIE_OPTIONS);
-  next();
+  withUserContext(user.id, next);
 }

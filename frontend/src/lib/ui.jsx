@@ -142,6 +142,7 @@ export function ScoreRing({ value, sub = true, className = '', style }) {
   const c = 2 * Math.PI * r;
   const [offset, setOffset] = useState(c);
   useEffect(() => {
+    if (value == null) { setOffset(c); return; }
     let inner;
     const outer = requestAnimationFrame(() => {
       inner = requestAnimationFrame(() => setOffset(c * (1 - value / 100)));
@@ -152,17 +153,16 @@ export function ScoreRing({ value, sub = true, className = '', style }) {
     };
   }, [value, c]);
   return (
-    <div className={`ring ${className}`} style={{ '--ring': `var(--${lvl.key})`, ...style }} role="img" aria-label={`Match score ${value} out of 100, ${lvl.word}`}>
+    <div className={`ring ${className}`} style={{ '--ring': value == null ? 'var(--line)' : `var(--${lvl.key})`, ...style }} role="img" aria-label={value == null ? 'Match score not available — job has no listed skills' : `Match score ${value} out of 100, ${lvl.word}`}>
       <svg viewBox="0 0 168 168" aria-hidden="true">
         <circle className="track" cx="84" cy="84" r={r} fill="none" strokeWidth="16" />
         <circle className="bar" cx="84" cy="84" r={r} fill="none" strokeWidth="16" strokeDasharray={c} style={{ strokeDashoffset: offset }} />
       </svg>
       <div className="ring-label">
         <span className="ring-num">
-          {value}
-          <small>%</small>
+          {value == null ? <span style={{ fontSize: '0.6em' }}>N/A</span> : <>{value}<small>%</small></>}
         </span>
-        {sub && <span className="ring-sub">match</span>}
+        {sub && <span className="ring-sub">{value == null ? 'no skills' : 'match'}</span>}
       </div>
     </div>
   );

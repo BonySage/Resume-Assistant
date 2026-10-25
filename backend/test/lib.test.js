@@ -5,6 +5,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import Anthropic from '@anthropic-ai/sdk';
 import { matchesFileSignature, extractResumeText } from '../src/lib/parseResume.js';
+import { fetchJobPostingText, isPublicAddress } from '../src/lib/jobPosting.js';
 import { cleanText } from '../src/lib/validators.js';
 import { friendlyAiError, readJsonOutput } from '../src/lib/aiClient.js';
 import { findUnsupportedClaims, validateOptions, hasPlaceholder } from '../src/lib/bulletEnhance.js';
@@ -47,6 +48,39 @@ describe('cleanText', () => {
   test('non-strings become an empty string', () => {
     assert.equal(cleanText(undefined), '');
     assert.equal(cleanText(42), '');
+  });
+});
+
+describe('job posting URL safety', () => {
+  test('allows public addresses and rejects private or reserved IPv4/IPv6 addresses', () => {
+    assert.equal(isPublicAddress('1.1.1.1'), true);
+    for (const address of [
+      '10.0.0.1',
+      '172.16.0.1',
+      '192.168.1.1',
+      '169.254.169.254',
+      '127.0.0.1',
+      '::1',
+      'fe80::1',
+      'fc00::1',
+      '::ffff:127.0.0.1',
+    ]) {
+      assert.equal(isPublicAddress(address), false, `${address} should not be public`);
+    }
+  });
+
+  test('rejects private destinations before making a request', async () => {
+    await assert.rejects(fetchJobPostingText('http://172.16.0.1/'), /Internal network links are blocked/);
+    await assert.rejects(fetchJobPostingText('http://[fe80::1]/'), /Internal network links are blocked/);
+  });
+});
+
+describe('computeMatch', () => {
+  test('returns no score and no false strong-match recommendation when no skills exist', () => {
+    const result = computeMatch({ skills: [], experience: [] }, { requiredSkills: { critical: [], secondary: [] } });
+    assert.equal(result.score, null);
+    assert.match(result.recommendations[0], /could not be calculated/);
+    assert.doesNotMatch(result.recommendations.join(' '), /Strong match/);
   });
 });
 

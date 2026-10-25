@@ -57,6 +57,12 @@
     return '<svg class="icon ' + (cls || "") + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' + (ICONS[name] || "") + "</svg>";
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+  }
+
   // <i data-icon="upload" class="icon-sm"></i>  ->  inline SVG
   function hydrateIcons(root) {
     (root || document).querySelectorAll("i[data-icon]").forEach(el => {
@@ -93,12 +99,12 @@
             <a class="btn btn-ghost btn-icon" href="#" data-tip="Help" aria-label="Help" data-action="help">${icon("help")}</a>
             <div class="avatar-menu">
               <button class="avatar-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu">
-                <span class="avatar" aria-hidden="true">${initials}</span>
-                <span class="who small"><span class="visually-hidden">Account menu for </span>${user.name.split(" ")[0]}</span>
+                <span class="avatar" aria-hidden="true">${escapeHtml(initials)}</span>
+                <span class="who small"><span class="visually-hidden">Account menu for </span>${escapeHtml(user.name.split(" ")[0])}</span>
                 ${icon("chevron", "icon-sm")}
               </button>
               <div class="menu" id="account-menu" role="menu">
-                <div class="menu-head"><strong>${user.name}</strong><div class="caption">${user.email}</div></div>
+                <div class="menu-head"><strong>${escapeHtml(user.name)}</strong><div class="caption">${escapeHtml(user.email)}</div></div>
                 <hr>
                 <a role="menuitem" href="settings.html">${icon("settings")}Settings</a>
                 <a role="menuitem" href="settings.html#accessibility">${icon("access")}Accessibility</a>
@@ -171,8 +177,8 @@
     region.innerHTML = ""; // one at a time keeps things calm
     const el = document.createElement("div");
     el.className = "toast";
-    el.innerHTML = `${icon(opts.icon || "check-circle")}<p>${message}</p>` +
-      (opts.action ? `<button type="button" class="act">${opts.action.label}</button>` : "") +
+    el.innerHTML = `${icon(opts.icon || "check-circle")}<p>${escapeHtml(message)}</p>` +
+      (opts.action ? `<button type="button" class="act">${escapeHtml(opts.action.label)}</button>` : "") +
       `<button type="button" class="x" aria-label="Dismiss notification">${icon("x", "icon-sm")}</button>`;
     region.appendChild(el);
     const close = () => el.remove();
@@ -194,7 +200,7 @@
         <button class="btn btn-ghost btn-icon modal-close" type="button" aria-label="Close dialog" data-v="0">${icon("x")}</button>
         <div class="modal-body">
           <div class="modal-icon ${o.tone || "danger"}">${icon(o.icon || "trash", "icon-lg")}</div>
-          <h2 id="dlg-title">${o.title}</h2>
+          <h2 id="dlg-title">${escapeHtml(o.title)}</h2>
           <div id="dlg-desc" class="muted">${o.body || ""}</div>
           ${o.extra || ""}
         </div>
@@ -342,7 +348,7 @@
     hydrateIcons(); // catch icons that page scripts rendered
   }
 
-  window.RA = { go, boot, icon, iconNames: Object.keys(ICONS), hydrateIcons, toast, confirm: confirmDialog, scoreRing, levelBadge, wait, showTimeoutWarning, logout, LOGO_HTML };
+  window.RA = { go, boot, icon, escapeHtml, iconNames: Object.keys(ICONS), hydrateIcons, toast, confirm: confirmDialog, scoreRing, levelBadge, wait, showTimeoutWarning, logout, LOGO_HTML };
   window.RAPages = window.RAPages || {};
 
   if (window.RA_ROUTER) { /* the router calls RA.boot() after each screen swap */ }

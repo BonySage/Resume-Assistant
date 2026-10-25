@@ -5,9 +5,18 @@ import { computeMatch } from '../lib/atsMatch.js';
 import { generateBulletOptions, validateOptions, findUnsupportedClaims, hasPlaceholder } from '../lib/bulletEnhance.js';
 import { cleanText } from '../lib/validators.js';
 import { renderResumePdf } from '../lib/generatePdf.js';
+import { rateLimit } from 'express-rate-limit';
 
 const router = Router();
 router.use(requireAuth);
+const aiRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Too many AI requests. Try again in 15 minutes.', code: 'RATE_LIMITED' },
+});
 
 const MAX_BULLET_LENGTH = 300; // matches the editor's limit on the improve page
 
@@ -23,6 +32,8 @@ function serializeAnalysis(row) {
     missingSecondary: row.missing_secondary,
     weakKeywords: row.weak_keywords,
     recommendations: row.recommendations,
+    jobTitle: row.job_title,
+    company: row.job_company,
     error: row.error,
     createdAt: row.created_at,
   };
@@ -38,22 +49,40 @@ async function ownedJobPosting(id, userId) {
 }
 async function ownedAnalysis(id, userId) {
   const { rows } = await query(
-    `SELECT analyses.* FROM analyses
+    `SELECT analyses.*, job_postings.title AS job_title, job_postings.company AS job_company
+     FROM analyses
      JOIN resumes ON resumes.id = analyses.resume_id
-     WHERE analyses.id = $1 AND resumes.user_id = $2`,
+     JOIN job_postings ON job_postings.id = analyses.job_posting_id
+     WHERE analyses.id = $1 AND resumes.user_id = $2 AND job_postings.user_id = $2`,
     [id, userId]
   );
   return rows[0];
 }
 
 router.get('/', async (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const offset = (page - 1) * limit;
+
   const { rows } = await query(
-    `SELECT analyses.* FROM analyses
+    `SELECT analyses.*, job_postings.title AS job_title, job_postings.company AS job_company
+     FROM analyses
      JOIN resumes ON resumes.id = analyses.resume_id
-     WHERE resumes.user_id = $1 ORDER BY analyses.id DESC`,
+     JOIN job_postings ON job_postings.id = analyses.job_posting_id
+     WHERE resumes.user_id = $1 AND job_postings.user_id = $1
+     ORDER BY analyses.id DESC LIMIT $2 OFFSET $3`,
+    [req.user.id, limit, offset]
+  );
+  const { rows: countRows } = await query(
+    `SELECT COUNT(*) AS total, MAX(analyses.score) AS best_score FROM analyses
+     JOIN resumes ON resumes.id = analyses.resume_id
+     JOIN job_postings ON job_postings.id = analyses.job_posting_id
+     WHERE resumes.user_id = $1 AND job_postings.user_id = $1`,
     [req.user.id]
   );
-  res.json({ analyses: rows.map(serializeAnalysis) });
+  const total = parseInt(countRows[0].total, 10);
+  const bestScore = countRows[0].best_score == null ? null : parseInt(countRows[0].best_score, 10);
+  res.json({ analyses: rows.map(serializeAnalysis), pagination: { page, limit, total, pages: Math.ceil(total / limit), bestScore } });
 });
 
 router.get('/:id', async (req, res) => {
@@ -123,7 +152,7 @@ router.get('/:id/bullets', async (req, res) => {
 });
 
 // FR-5.1 / FR-5.2: generate 3 AI options for a specific resume bullet.
-router.post('/:id/bullets/:bulletId/generate', async (req, res) => {
+router.post('/:id/bullets/:bulletId/generate', aiRateLimit, async (req, res) => {
   const analysis = await ownedAnalysis(req.params.id, req.user.id);
   if (!analysis) return res.status(404).json({ error: 'Analysis not found.' });
   const resume = await ownedResume(analysis.resume_id, req.user.id);
@@ -250,7 +279,11 @@ router.get('/:id/export', async (req, res) => {
   );
   const overrides = new Map(rows.map((r) => [r.bullet_id, r.selected_text]));
 
-  const baseName = resume.original_filename.replace(/\.(pdf|docx)$/i, '');
+  const baseName = (resume.original_filename || 'resume')
+    .split(/[\\/]/).pop()
+    .replace(/\.(pdf|docx)$/i, '')
+    .replace(/[^a-z0-9_-]+/gi, '_')
+    .slice(0, 80) || 'resume';
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${baseName}-updated.pdf"`);
   renderResumePdf({ resume: { ...resume.parsed_data, originalFilename: baseName }, bulletOverrides: overrides }, res);

@@ -4,7 +4,7 @@ import AppShell from '../components/AppShell.jsx';
 import { Icon } from '../lib/icons.jsx';
 import { Alert, Steps } from '../lib/ui.jsx';
 import { fileKind } from '../lib/format.js';
-import { api } from '../api.js';
+import { api, listAllPages } from '../api.js';
 
 const MIN_TEXT = 80;
 
@@ -33,7 +33,7 @@ export default function JobPosting() {
 
   useEffect(() => {
     document.title = 'Add a job posting · Forma';
-    api.listResumes().then(({ resumes: list }) => {
+    listAllPages(api.listResumes, 'resumes').then((list) => {
       setResumes(list);
       const usable = list.filter((r) => !r.parseError);
       setResumeId((cur) => (usable.some((r) => String(r.id) === String(cur)) ? cur : String(usable[0]?.id || '')));

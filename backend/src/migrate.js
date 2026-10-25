@@ -7,13 +7,30 @@ import { config } from './config.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', '..', 'db', 'migrations');
 
-if (!config.databaseUrl) {
-  console.error('DATABASE_URL is not set — see backend/.env.example.');
+const migrationDatabaseUrl = config.migrationDatabaseUrl || config.databaseUrl;
+if (!migrationDatabaseUrl) {
+  console.error('MIGRATION_DATABASE_URL is not set — see backend/.env.example.');
   process.exit(1);
 }
-const pool = new pg.Pool({ connectionString: config.databaseUrl });
+if (!config.appDbPassword) {
+  console.error('APP_DB_PASSWORD is not set — see backend/.env.example.');
+  process.exit(1);
+}
+const pool = new pg.Pool({ connectionString: migrationDatabaseUrl });
 
 async function main() {
+  await pool.query(`
+    DO $role$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'resume_app') THEN
+        EXECUTE 'CREATE ROLE resume_app LOGIN';
+      END IF;
+    END
+    $role$;
+  `);
+  const { rows: passwordRows } = await pool.query('SELECT quote_literal($1) AS value', [config.appDbPassword]);
+  await pool.query(`ALTER ROLE resume_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD ${passwordRows[0].value}`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       filename TEXT PRIMARY KEY,
@@ -47,6 +64,9 @@ async function main() {
       client.release();
     }
   }
+
+  await pool.query('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO resume_app');
+  await pool.query('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO resume_app');
 
   console.log('Migrations up to date.');
   await pool.end();
