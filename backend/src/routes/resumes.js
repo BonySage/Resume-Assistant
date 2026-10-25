@@ -4,24 +4,17 @@ import { query } from '../db.js';
 import { HttpError, badRequest, notFound, unprocessable } from '../errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireValidId } from '../middleware/idParam.js';
+import { userRateLimit } from '../middleware/userRateLimit.js';
 import { extractResumeText, matchesFileSignature } from '../lib/parseResume.js';
 import { parseResumeStructure } from '../lib/parseResumeStructure.js';
 import { cleanFilename } from '../lib/validators.js';
-import { rateLimit } from 'express-rate-limit';
 
 const ALLOWED_MIME = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
-const uploadRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === 'test',
-  message: { error: 'Too many resume uploads. Try again in 15 minutes.', code: 'RATE_LIMITED' },
-});
+const uploadRateLimit = userRateLimit({ limit: 10, message: 'Too many resume uploads. Try again in 15 minutes.' });
 
 // The file is only needed long enough to extract its text, so it stays in
 // memory and is never written to disk. Export rebuilds the PDF from parsed_data.

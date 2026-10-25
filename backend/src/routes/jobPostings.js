@@ -2,21 +2,14 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireValidId } from '../middleware/idParam.js';
+import { userRateLimit } from '../middleware/userRateLimit.js';
 import { fetchJobPostingText, parseJobPostingText } from '../lib/jobPosting.js';
 import { cleanText } from '../lib/validators.js';
-import { rateLimit } from 'express-rate-limit';
 
 const router = Router();
 router.use(requireAuth);
 router.param('id', requireValidId('Job posting not found.'));
-const parseRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === 'test',
-  message: { error: 'Too many job-posting requests. Try again in 15 minutes.', code: 'RATE_LIMITED' },
-});
+const parseRateLimit = userRateLimit({ limit: 10, message: 'Too many job-posting requests. Try again in 15 minutes.' });
 
 function serialize(row) {
   return {

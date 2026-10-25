@@ -25,6 +25,19 @@ export const COOKIE_OPTIONS = {
   maxAge: SESSION_TTL_MS,
 };
 
+// The user id from a validly signed, unexpired session cookie, or null. No
+// database lookup: used by the global rate limiter to count logged-in
+// requests per user instead of per IP (a forged token gets no allowance).
+export function sessionUserId(req) {
+  const token = req.cookies?.token;
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] }).sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Guards a router or route: sets req.user = { id, email } or responds 401.
 export async function requireAuth(req, res, next) {
   const token = req.cookies?.token;

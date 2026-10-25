@@ -175,6 +175,51 @@ describe('API app', () => {
       await limited.close();
     }
   });
+
+  // Many people can share one IP (campus Wi-Fi). Logged-in requests count
+  // against the user, so one person can't use up everyone's allowance.
+  test('when logged in, the global limit counts per user, not per IP', async () => {
+    const limited = await serve(createApp());
+    const as = (token) => limited.call('/api/rate-limit-check', token ? { headers: { Cookie: `token=${token}` } } : undefined);
+    const token = (sub, secret = 'test-secret') => jwt.sign({ sub }, secret, { expiresIn: '5m' });
+    try {
+      // Use up this IP's anonymous allowance (an earlier test may already have).
+      for (let i = 0; i < 125 && (await as()).status !== 429; i++);
+      assert.equal((await as()).status, 429, 'anonymous requests: the IP allowance is used up');
+
+      let allowed = 0;
+      while (allowed < 125 && (await as(token(101))).status !== 429) allowed++;
+      assert.equal(allowed, 120, 'a logged-in user gets their own 120 per minute');
+      assert.notEqual((await as(token(102))).status, 429, 'another user on the same IP is unaffected');
+      assert.equal((await as(token(103, 'wrong-secret'))).status, 429, 'a forged token gets no fresh allowance');
+    } finally {
+      await limited.close();
+    }
+  });
+
+  // Per-user counting must not let one machine multiply its allowance by
+  // holding many accounts: every IP also has a ceiling of 600 requests/minute.
+  test('many accounts from one IP still hit a per-IP ceiling', async () => {
+    const limited = await serve(createApp());
+    try {
+      let total = 0;
+      let blocked = null;
+      for (let user = 301; user < 320 && !blocked; user++) {
+        const token = jwt.sign({ sub: user }, 'test-secret', { expiresIn: '5m' });
+        for (let sent = 0; sent < 110; sent++) {
+          const res = await limited.call('/api/rate-limit-check', { headers: { Cookie: `token=${token}` } });
+          if (res.status === 429) { blocked = { sent, body: res.body }; break; }
+          total++;
+        }
+      }
+      assert.ok(blocked, `never limited after ${total} requests from ${19} accounts`);
+      assert.ok(blocked.sent < 110, 'blocked before that account used its own 120');
+      assert.ok(total <= 600, `allowed ${total} in total`);
+      assert.equal(blocked.body.code, 'RATE_LIMITED');
+    } finally {
+      await limited.close();
+    }
+  });
 });
 
 describe('error handler', () => {

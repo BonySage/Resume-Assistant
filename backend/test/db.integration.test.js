@@ -43,6 +43,7 @@ describe('database integration', { skip: ADMIN_URL ? false : 'set TEST_DATABASE_
   const dbName = `resume_test_${process.pid}_${Date.now()}`;
   const appPassword = `test-app-password-${Date.now()}`;
   let admin; // superuser connection to the test database (bypasses RLS)
+  let appDbUrlForChild; // restricted resume_app URL, for tests that start their own server
   let db; // ../src/db.js, connected as the restricted resume_app role
   let api;
   let requestCount = 0;
@@ -95,6 +96,7 @@ describe('database integration', { skip: ADMIN_URL ? false : 'set TEST_DATABASE_
     const appDbUrl = new URL(testDbUrl);
     appDbUrl.username = 'resume_app';
     appDbUrl.password = appPassword;
+    appDbUrlForChild = appDbUrl.href;
 
     const backendDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
     await promisify(execFile)(process.execPath, ['src/migrate.js'], {
@@ -354,6 +356,72 @@ describe('database integration', { skip: ADMIN_URL ? false : 'set TEST_DATABASE_
       assert.match(res.body.error, /too large/);
       assert.equal(await countResumes(alice.id), before);
     });
+  });
+
+  // The limits on the paid AI calls (upload -> resume parsing, job posting ->
+  // job parsing, bullet rewrite) are off in tests, so this starts the real
+  // server as a separate process in development mode, where they are on.
+  // Limits must count per user: people on one IP (campus Wi-Fi) don't share
+  // an allowance, and one user can't reset theirs by changing IP.
+  describe('rate limits on AI calls (real server, limiters on)', () => {
+    let child;
+    let base;
+    const SHARED_IP = '203.0.113.10';
+    const call = (path, { cookie, ip = SHARED_IP, json } = {}) => fetch(base + path, {
+      method: 'POST',
+      headers: { Origin: ORIGIN, 'X-Forwarded-For': ip, ...(cookie ? { Cookie: cookie } : {}), ...(json ? { 'Content-Type': 'application/json' } : {}) },
+      body: json ? JSON.stringify(json) : undefined,
+    });
+    const signupOn = async (email) => {
+      const res = await call('/api/auth/signup', { json: { email, password: PASSWORD } });
+      assert.equal(res.status, 201, `signup ${email}`);
+      return res.headers.get('set-cookie').split(';')[0];
+    };
+
+    before(async () => {
+      const { spawn } = await import('node:child_process');
+      const net = await import('node:net');
+      const port = await new Promise((resolve) => {
+        const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); });
+      });
+      base = `http://127.0.0.1:${port}`;
+      child = spawn(process.execPath, ['src/index.js'], {
+        cwd: path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
+        env: {
+          PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
+          NODE_ENV: 'development', PORT: String(port), DATABASE_URL: appDbUrlForChild,
+          JWT_SECRET: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
+          CLIENT_ORIGIN: ORIGIN, TRUST_PROXY: '1', ANTHROPIC_API_KEY: '',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('server did not start')), 15_000);
+        child.stdout.on('data', (d) => { if (String(d).includes('listening')) { clearTimeout(timer); resolve(); } });
+        child.on('exit', (code) => { clearTimeout(timer); reject(new Error(`server exited (${code})`)); });
+      });
+    });
+    after(() => child?.kill());
+
+    for (const [name, limit, request] of [
+      ['resume upload', 10, (cookie, ip) => call('/api/resumes', { cookie, ip })],
+      ['job posting', 10, (cookie, ip) => call('/api/job-postings', { cookie, ip, json: { text: 'too short' } })],
+      ['AI bullet rewrite', 5, (cookie, ip) => call('/api/analyses/1/bullets/exp0-b0/generate', { cookie, ip })],
+    ]) {
+      test(`${name}: ${limit} per user per 15 minutes, not shared by an IP, not reset by changing IP`, async () => {
+        const tag = name.replace(/\W+/g, '-');
+        const userA = await signupOn(`rl-a-${tag}@example.com`);
+        const userB = await signupOn(`rl-b-${tag}@example.com`);
+        let allowed = 0;
+        while (allowed < limit + 5 && (await request(userA, SHARED_IP)).status !== 429) allowed++;
+        assert.equal(allowed, limit, `user A was allowed ${allowed}`);
+        const blocked = await request(userA, SHARED_IP);
+        assert.equal(blocked.status, 429);
+        assert.equal((await blocked.json()).code, 'RATE_LIMITED');
+        assert.equal((await request(userA, '198.51.100.77')).status, 429, 'changing IP does not reset the limit');
+        assert.notEqual((await request(userB, SHARED_IP)).status, 429, 'another user on the same IP still has their own allowance');
+      });
+    }
   });
 
   // Cross-site request forgery: another website making a logged-in user's

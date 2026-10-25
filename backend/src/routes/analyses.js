@@ -2,23 +2,16 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireValidId } from '../middleware/idParam.js';
+import { userRateLimit } from '../middleware/userRateLimit.js';
 import { computeMatch } from '../lib/atsMatch.js';
 import { generateBulletOptions, validateOptions, findUnsupportedClaims, hasPlaceholder } from '../lib/bulletEnhance.js';
 import { cleanText, isValidId } from '../lib/validators.js';
 import { renderResumePdf } from '../lib/generatePdf.js';
-import { rateLimit } from 'express-rate-limit';
 
 const router = Router();
 router.use(requireAuth);
 router.param('id', requireValidId('Analysis not found.'));
-const aiRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 5,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === 'test',
-  message: { error: 'Too many AI requests. Try again in 15 minutes.', code: 'RATE_LIMITED' },
-});
+const aiRateLimit = userRateLimit({ limit: 5, message: 'Too many AI requests. Try again in 15 minutes.' });
 
 const MAX_BULLET_LENGTH = 300; // matches the editor's limit on the improve page
 
