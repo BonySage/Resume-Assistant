@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { Icon } from '../lib/icons.jsx';
@@ -8,13 +8,26 @@ import { api, loadAnalysisBundle } from '../api.js';
 
 const MAX = 300;
 
-const toOptions = (opts) => (opts || []).map((o) => ({ text: o.text, flagged: !!o.flagged, draft: o.text, editing: false }));
+const toOptions = (opts) =>
+  (opts || []).map((o) => ({ text: o.text, flagged: !!o.flagged, issues: o.issues || [], draft: o.text, editing: false }));
+
+const hasPlaceholder = (text) => /\[[^\]]*\]/.test(text);
+
+// [{type:'name',term:'Google'},{type:'metric',term:'65'}] → "“Google” and the number 65"
+function describeIssues(issues) {
+  const parts = issues.map((i) => (i.type === 'metric' ? `the number ${i.term}` : `“${i.term}”`));
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0] || '';
+}
 
 export default function BulletImprove() {
   const { analysisId } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { toast } = useUI();
+  const { toast, confirm } = useUI();
+  // Latest suggestion per bullet, so revisiting a bullet reuses its options.
+  const suggestionsRef = useRef([]);
+  // Bumped on every generate / bullet switch; a response for an older request is ignored.
+  const requestRef = useRef(0);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [options, setOptions] = useState([]);
@@ -23,15 +36,21 @@ export default function BulletImprove() {
   const [downMsg, setDownMsg] = useState('');
   const [manual, setManual] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [savedIds, setSavedIds] = useState(new Set());
+  // bulletId → saved text. A saved bullet replaces the original in the exported resume (FR-5.3).
+  const [savedTexts, setSavedTexts] = useState(new Map());
   const [justSaved, setJustSaved] = useState(false);
+
+  const rememberSuggestion = (s) => {
+    suggestionsRef.current = [...suggestionsRef.current.filter((x) => x.bulletId !== s.bulletId), s];
+  };
 
   useEffect(() => {
     document.title = 'Improve bullets · Forma';
     loadAnalysisBundle(analysisId)
       .then((d) => {
+        suggestionsRef.current = d.suggestions;
+        setSavedTexts(new Map(d.suggestions.filter((s) => s.selectedText).map((s) => [s.bulletId, s.selectedText])));
         setData(d);
-        setSavedIds(new Set(d.suggestions.filter((s) => s.selectedText).map((s) => s.bulletId)));
       })
       .catch((err) => setError(err.message));
   }, [analysisId]);
@@ -41,15 +60,20 @@ export default function BulletImprove() {
   const bulletId = bullet?.id;
 
   const generate = useCallback(async () => {
+    const reqId = ++requestRef.current;
     setSelected(null);
     setManual(false);
     setPhase('loading');
     try {
       const { suggestion } = await api.generateBulletOptions(analysisId, bulletId);
+      if (reqId !== requestRef.current) return false; // user moved on to another bullet
+      rememberSuggestion(suggestion);
       setOptions(toOptions(suggestion.options));
       setPhase('ready');
       return true;
     } catch (err) {
+      if (reqId !== requestRef.current) return false;
+      // NFR-4.3: tell the user and offer manual editing.
       setDownMsg(err.message);
       setPhase('down');
       return false;
@@ -59,8 +83,9 @@ export default function BulletImprove() {
   // When the bullet changes: reuse options generated earlier, otherwise ask the AI.
   useEffect(() => {
     if (!data || !bulletId) return;
+    requestRef.current++;
     setJustSaved(false);
-    const existing = data.suggestions.find((s) => s.bulletId === bulletId && s.options?.length);
+    const existing = suggestionsRef.current.find((s) => s.bulletId === bulletId && s.options?.length);
     if (existing) {
       setOptions(toOptions(existing.options));
       setSelected(Number.isInteger(existing.selectedIndex) ? existing.selectedIndex : null);
@@ -106,23 +131,47 @@ export default function BulletImprove() {
 
   const update = (i, patch) => setOptions((opts) => opts.map((o, j) => (j === i ? { ...o, ...patch } : o)));
 
-  const save = async () => {
-    if (selected === null) return;
-    const o = options[selected];
-    const edited = manual || o.draft.trim() !== o.text;
-    if (!o.draft.trim()) {
+  const current = selected === null ? null : options[selected];
+  const currentEdited = !!current && (manual || current.draft.trim() !== current.text);
+  // FR-5.2: an AI option that failed validation can't be saved until the user edits it.
+  const blockedUnverified = !!current && current.flagged && !currentEdited;
+  const blockedPlaceholder = !!current && hasPlaceholder(current.draft);
+
+  const save = async (confirmUnverified = false) => {
+    if (!current) return;
+    const draft = current.draft.trim();
+    if (!draft) {
       toast('The bullet can’t be empty.', { icon: 'x-circle' });
       return;
     }
+    if (blockedUnverified || blockedPlaceholder) return;
     setSaving(true);
     try {
-      await api.selectBulletOption(analysisId, bullet.id, edited ? { text: o.draft.trim() } : { index: selected });
-      const ids = new Set(savedIds).add(bullet.id);
-      setSavedIds(ids);
+      const { suggestion } = await api.selectBulletOption(
+        analysisId,
+        bullet.id,
+        currentEdited ? { text: draft, confirmUnverified } : { index: selected }
+      );
+      rememberSuggestion(suggestion);
+      setSavedTexts((m) => new Map(m).set(bullet.id, suggestion.selectedText));
       setJustSaved(true);
-      toast('Bullet saved to your resume');
+      toast('Bullet saved — it replaces the original in your resume');
       setTimeout(() => document.getElementById('continue')?.focus(), 0);
     } catch (err) {
+      // The user's own edit mentions something the resume doesn't back: let them vouch for it.
+      if (err.code === 'UNVERIFIED_CLAIM' && err.canConfirm && !confirmUnverified) {
+        setSaving(false);
+        const ok = await confirm({
+          tone: 'warn',
+          icon: 'flag',
+          title: 'Is this true?',
+          body: `${describeIssues(err.issues || [])} ${err.issues?.length > 1 ? 'aren’t' : 'isn’t'} in your resume. Only save it if it’s accurate.`,
+          cancelLabel: 'Keep editing',
+          confirmLabel: 'It’s true, save it',
+        });
+        if (ok) return await save(true);
+        return;
+      }
       toast(err.message, { icon: 'x-circle' });
     } finally {
       setSaving(false);
@@ -130,14 +179,16 @@ export default function BulletImprove() {
   };
 
   const startManual = () => {
-    setOptions([{ text: bullet.text, flagged: false, draft: bullet.text, editing: true }]);
+    const start = savedTexts.get(bullet.id) || bullet.text;
+    setOptions([{ text: start, flagged: false, issues: [], draft: start, editing: true }]);
     setSelected(0);
     setManual(true);
     setPhase('ready');
     setTimeout(() => document.getElementById('edit-0')?.focus(), 0);
   };
 
-  const target = nextTarget(savedIds);
+  const target = nextTarget(savedTexts);
+  const savedText = savedTexts.get(bullet.id);
 
   return (
     <AppShell active="analyses" back={`/results/${analysisId}`}>
@@ -151,13 +202,16 @@ export default function BulletImprove() {
               <h1 style={{ marginTop: 6 }}>Make this bullet <em>work harder</em></h1>
             </div>
             <div className="pill-tip">
-              <span className="badge badge-good"><Icon name="check" />{savedIds.size}</span> of {bullets.length} bullets improved
+              <span className="badge badge-good"><Icon name="check" />{savedTexts.size}</span> of {bullets.length} bullets improved
             </div>
           </div>
 
           <section className="original" aria-labelledby="orig-label">
-            <p className="eyebrow" id="orig-label">Original bullet · <span>{bullet.where}</span></p>
-            <blockquote>“{bullet.text}”</blockquote>
+            <p className="eyebrow" id="orig-label">{savedText ? 'Your saved bullet' : 'Original bullet'} · <span>{bullet.where}</span></p>
+            <blockquote>“{savedText || bullet.text}”</blockquote>
+            {savedText && savedText !== bullet.text && (
+              <p className="small" style={{ color: '#d6d2c8', marginTop: -4 }}>Replaces the original: “{bullet.text}”</p>
+            )}
             {fits.length > 0 && (
               <div className="row" style={{ gap: 8 }}>
                 <span className="small" style={{ color: '#d6d2c8' }}>Job keywords this could show:</span>
@@ -182,7 +236,7 @@ export default function BulletImprove() {
               <>
                 <div className="card row" style={{ gap: 14 }}>
                   <span className="spinner" />
-                  <div><strong>Writing 3 options…</strong><div className="small muted">About 10 seconds</div></div>
+                  <div><strong>Writing 3 options…</strong><div className="small muted">Usually under 15 seconds</div></div>
                 </div>
                 {[0, 1, 2].map((i) => (
                   <div className="option" key={i}><div className="skeleton" style={{ width: '30%' }} /><div className="skeleton" /><div className="skeleton" style={{ width: '80%' }} /></div>
@@ -207,7 +261,8 @@ export default function BulletImprove() {
             {phase === 'ready' && options.map((o, i) => {
               const sel = selected === i;
               const edited = o.draft !== o.text;
-              const kw = o.flagged ? flagKeyword(o.text) : null;
+              // Older saved suggestions have no issues list; fall back to the keyword check.
+              const kw = o.flagged && !o.issues.length ? flagKeyword(o.text) : null;
               return (
                 <article className="option" data-selected={sel} aria-labelledby={`opt-${i}`} key={i}>
                   <div className="option-head">
@@ -231,8 +286,11 @@ export default function BulletImprove() {
                     <div className="alert alert-warn" style={{ padding: '10px 14px' }}>
                       <Icon name="flag" />
                       <div className="alert-body small">
-                        <strong>Check this: {kw ? `“${kw}” isn’t in your resume.` : 'it mentions a job skill that isn’t in your resume.'}</strong>
-                        Only use this option if it’s true.
+                        <strong>
+                          Not in your resume:{' '}
+                          {o.issues.length ? `${describeIssues(o.issues)}.` : kw ? `“${kw}”.` : 'a job skill this option mentions.'}
+                        </strong>
+                        {edited ? 'Only keep it if it’s true; we’ll ask you to confirm when you save.' : 'Edit it out before you can save this option.'}
                       </div>
                     </div>
                   )}
@@ -271,7 +329,14 @@ export default function BulletImprove() {
           </div>
 
           <div className="actionbar">
-            <p className="note"><Icon name="lock" />Your resume won’t change until you press Save.</p>
+            <p className="note" role={blockedUnverified || blockedPlaceholder ? 'status' : undefined}>
+              <Icon name={blockedUnverified || blockedPlaceholder ? 'flag' : 'lock'} />
+              {blockedUnverified
+                ? 'Edit this option to remove what isn’t in your resume, or pick another.'
+                : blockedPlaceholder
+                  ? 'Replace the [placeholder] with your real number to save.'
+                  : 'Your resume won’t change until you press Save.'}
+            </p>
             <Link className="btn btn-secondary" to={`/results/${analysisId}`}><Icon name="arrow-left" />Back to results</Link>
             <button className="btn btn-secondary" type="button" onClick={() => navigate(target)}>Skip this bullet</button>
             {justSaved ? (
@@ -279,7 +344,7 @@ export default function BulletImprove() {
                 {target.endsWith('/export') ? 'Continue to export' : 'Next bullet'} <Icon name="arrow-right" />
               </Link>
             ) : (
-              <button className="btn btn-primary" type="button" disabled={selected === null || saving || phase !== 'ready'} aria-busy={saving} onClick={save}>
+              <button className="btn btn-primary" type="button" disabled={!current || saving || phase !== 'ready' || blockedUnverified || blockedPlaceholder} aria-busy={saving} onClick={() => save()}>
                 {saving ? <><Icon name="refresh" />Saving…</> : 'Save selection'}
               </button>
             )}

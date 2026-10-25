@@ -114,8 +114,20 @@ export const api = {
 
   // Bullet improvement
   listBulletSuggestions: (analysisId) => request(`/analyses/${analysisId}/bullets`),
-  generateBulletOptions: (analysisId, bulletId) =>
-    request(`/analyses/${analysisId}/bullets/${encodeURIComponent(bulletId)}/generate`, { method: 'POST' }),
+  // NFR-1.4: the server gives the AI 15s; stop waiting shortly after that so the
+  // page can offer manual editing (NFR-4.3) instead of hanging.
+  generateBulletOptions: async (analysisId, bulletId) => {
+    try {
+      return await request(`/analyses/${analysisId}/bullets/${encodeURIComponent(bulletId)}/generate`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (err) {
+      if (err.name === 'TimeoutError') throw new Error('The AI service took too long to respond.');
+      if (err instanceof TypeError) throw new Error('We couldn’t reach the server. Check your connection.');
+      throw err;
+    }
+  },
   selectBulletOption: (analysisId, bulletId, body) =>
     request(`/analyses/${analysisId}/bullets/${encodeURIComponent(bulletId)}/select`, {
       method: 'POST',

@@ -24,7 +24,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Create the root .env from compose.env.example; never commit that file.
+    # Secrets (JWT_SECRET, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_PARSE_MODEL) come from backend/.env.
+    # It's optional so the stack still starts without it (AI features stay off).
+    env_file:
+      - path: backend/.env
+        required: false
+    # These override backend/.env so the container talks to the db container.
     environment:
       # 'production' marks the login cookie Secure (HTTPS only). Local Docker runs
       # over plain http://localhost, so keep it 'development' until there's HTTPS.

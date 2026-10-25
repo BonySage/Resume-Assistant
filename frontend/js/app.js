@@ -292,7 +292,7 @@
   const PARENT = {
     auth: "index.html", dashboard: "index.html", job: "dashboard.html", results: "job.html",
     improve: "results.html", export: "improve.html", done: "dashboard.html",
-    settings: "dashboard.html", styleguide: "index.html"
+    settings: "dashboard.html"
   };
   function renderBack() {
     const page = document.body.dataset.page;
