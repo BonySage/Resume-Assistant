@@ -37,16 +37,24 @@ export function resumeBullets(parsed) {
 }
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Regex source for a whole-word match of `kw`. Like \b, a boundary is required
+// only where the keyword edge is a word character: \b alone fails next to
+// symbols ("C++", "C#"), and ".NET" must still match inside "ASP.NET".
+export function keywordPattern(kw) {
+  const start = /^\w/.test(kw) ? '(?<!\\w)' : '';
+  const end = /\w$/.test(kw) ? '(?!\\w)' : '';
+  return `${start}${escapeRe(kw)}${end}`;
+}
 export function containsKeyword(text, kw) {
   if (!kw) return false;
-  return new RegExp(`\\b${escapeRe(kw.trim())}\\b`, 'i').test(text || '');
+  return new RegExp(keywordPattern(kw.trim()), 'i').test(text || '');
 }
 
 // Split text into [{text, mark}] segments so job keywords can be highlighted without innerHTML.
 export function highlightKeywords(text, keywords) {
   const kws = [...new Set((keywords || []).map((k) => k.trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
   if (!kws.length) return [{ text, mark: false }];
-  const re = new RegExp(`\\b(${kws.map(escapeRe).join('|')})\\b`, 'gi');
+  const re = new RegExp(kws.map(keywordPattern).join('|'), 'gi');
   const parts = [];
   let last = 0;
   let m;

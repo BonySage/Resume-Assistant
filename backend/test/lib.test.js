@@ -202,6 +202,78 @@ describe('computeMatch', () => {
     assert.match(result.recommendations[0], /could not be calculated/);
     assert.doesNotMatch(result.recommendations.join(' '), /Strong match/);
   });
+
+  // The resume and job used in the TESTING.md QA run: C++ and C# were reported
+  // missing (score 27%) although the resume names each of them three times.
+  const qaResume = {
+    summary: 'Software engineer with C++ and C# experience.',
+    skills: ['C++', 'C#', 'Python', 'SQL'],
+    experience: [{
+      title: 'Software Engineer', company: 'Acme Corp',
+      bullets: [
+        { id: 'exp0-b0', text: 'Built C++ services handling 10,000 requests per second' },
+        { id: 'exp0-b1', text: 'Wrote C# tools for internal reporting with SQL' },
+        { id: 'exp0-b2', text: 'Automated Python test suites for the build pipeline' },
+      ],
+    }],
+  };
+  const qaJob = { requiredSkills: { critical: ['C++', 'C#', 'Python', 'Kubernetes'], secondary: ['SQL', 'Docker', 'Go'] } };
+
+  test('recognizes keywords that end in symbols (C++, C#)', () => {
+    const result = computeMatch(qaResume, qaJob);
+    assert.deepEqual(result.matchedKeywords, ['c++', 'c#', 'python', 'sql']);
+    assert.deepEqual(result.missingCritical, ['kubernetes']);
+    assert.deepEqual(result.missingSecondary, ['docker', 'go']);
+    assert.doesNotMatch(result.recommendations.join(' '), /"c\+\+"|"c#"/);
+  });
+
+  test('scores the QA resume at 64% (critical ×2, secondary ×1)', () => {
+    // Earned: C++ 2 + C# 2 + Python 2 + SQL 1 = 7 of 4×2 + 3×1 = 11.
+    assert.equal(computeMatch(qaResume, qaJob).score, 64);
+  });
+
+  test('recognizes keywords that start with a symbol (.NET) and other punctuation (Node.js)', () => {
+    const resume = { skills: ['.NET', 'Node.js'], experience: [{ bullets: [{ id: 'b', text: 'Built .NET and Node.js APIs' }] }] };
+    const result = computeMatch(resume, { requiredSkills: { critical: ['.NET', 'Node.js'], secondary: [] } });
+    assert.deepEqual(result.matchedKeywords, ['.net', 'node.js']);
+  });
+
+  test('a symbol keyword needs a boundary only on its word side (ASP.NET has .NET)', () => {
+    const resume = { skills: ['ASP.NET'], experience: [{ bullets: [{ id: 'b', text: 'Built ASP.NET APIs' }] }] };
+    assert.deepEqual(computeMatch(resume, { requiredSkills: { critical: ['.NET'], secondary: [] } }).matchedKeywords, ['.net']);
+    const network = { skills: ['.NETwork'], experience: [] };
+    assert.deepEqual(computeMatch(network, { requiredSkills: { critical: ['.NET'], secondary: [] } }).missingCritical, ['.net']);
+  });
+
+  // The results page labels scores Low 0–49, Fair 50–74, Strong 75+; the
+  // "match is low" advice must follow the same scale, not contradict a Fair badge.
+  const lowAdvice = /overall match is low/;
+  const scaleResume = { skills: ['Python', 'SQL'], experience: [{ bullets: [{ id: 'b', text: 'Wrote Python tools' }] }] };
+  test('a Fair score (50–74) does not say the match is low', () => {
+    const result = computeMatch(scaleResume, { requiredSkills: { critical: ['Python', 'Kubernetes'], secondary: ['SQL'] } });
+    assert.equal(result.score, 50);
+    assert.doesNotMatch(result.recommendations.join(' '), lowAdvice);
+  });
+
+  test('a Fair score with only nice-to-have gaps is not called a strong match', () => {
+    const resume = { skills: ['Python', 'SQL'], experience: [{ bullets: [{ id: 'b', text: 'Wrote Python and SQL tools' }] }] };
+    const result = computeMatch(resume, { requiredSkills: { critical: ['Python', 'SQL'], secondary: ['Docker', 'Go', 'AWS'] } });
+    assert.equal(result.score, 57);
+    assert.doesNotMatch(result.recommendations.join(' '), /Strong match/);
+    assert.match(result.recommendations.join(' '), /docker/);
+  });
+
+  test('a Low score (under 50) says the match is low', () => {
+    const result = computeMatch(scaleResume, { requiredSkills: { critical: ['Kubernetes', 'AWS'], secondary: ['SQL'] } });
+    assert.equal(result.score, 10);
+    assert.match(result.recommendations.join(' '), lowAdvice);
+  });
+
+  test('still matches whole words only', () => {
+    const resume = { skills: ['JavaScript', 'Golang'], experience: [] };
+    const result = computeMatch(resume, { requiredSkills: { critical: ['Java', 'Go'], secondary: [] } });
+    assert.deepEqual(result.missingCritical, ['java', 'go']);
+  });
 });
 
 describe('friendlyAiError', () => {

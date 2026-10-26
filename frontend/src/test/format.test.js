@@ -11,6 +11,7 @@ import {
   highlightKeywords,
   safeFileName,
 } from '../lib/format.js';
+import { estimateScore } from '../lib/match.js';
 
 // ─── fmtDate ────────────────────────────────────────────────────────────────
 
@@ -162,6 +163,18 @@ describe('containsKeyword', () => {
     expect(containsKeyword('A reactionary approach', 'react')).toBe(false);
   });
 
+  it('matches keywords that start or end with a symbol (C++, C#, .NET)', () => {
+    expect(containsKeyword('Built C++ services', 'C++')).toBe(true);
+    expect(containsKeyword('Wrote C# tools', 'c#')).toBe(true);
+    expect(containsKeyword('Skills: C++', 'C++')).toBe(true);
+    expect(containsKeyword('Built .NET APIs', '.NET')).toBe(true);
+  });
+
+  it('only requires a boundary on the word side of a symbol keyword (ASP.NET has .NET)', () => {
+    expect(containsKeyword('Built ASP.NET Core APIs', '.NET')).toBe(true);
+    expect(containsKeyword('Built .NETwork tools', '.NET')).toBe(false);
+  });
+
   it('returns false for falsy keyword or text', () => {
     expect(containsKeyword('some text', '')).toBe(false);
     expect(containsKeyword('some text', null)).toBe(false);
@@ -182,6 +195,17 @@ describe('highlightKeywords', () => {
     const marked = result.filter((s) => s.mark).map((s) => s.text.toLowerCase());
     expect(marked).toContain('react');
     expect(marked).toContain('python');
+  });
+
+  it('marks keywords that end in symbols (C++, C#)', () => {
+    const result = highlightKeywords('Built C++ services and C# tools with SQL', ['C++', 'C#', 'SQL']);
+    expect(result.filter((s) => s.mark).map((s) => s.text)).toEqual(['C++', 'C#', 'SQL']);
+    expect(result.map((s) => s.text).join('')).toBe('Built C++ services and C# tools with SQL');
+  });
+
+  it('marks .NET inside ASP.NET', () => {
+    const result = highlightKeywords('Built ASP.NET APIs', ['.NET']);
+    expect(result.filter((s) => s.mark).map((s) => s.text)).toEqual(['.NET']);
   });
 
   it('handles empty keywords array without crashing', () => {
@@ -216,6 +240,29 @@ describe('safeFileName', () => {
   it('truncates to 60 characters', () => {
     const long = 'a'.repeat(80);
     expect(safeFileName(long).length).toBeLessThanOrEqual(60);
+  });
+});
+
+// ─── estimateScore (client copy of the backend score) ───────────────────────
+
+describe('estimateScore', () => {
+  it('counts keywords that end in symbols, matching the backend score', () => {
+    const parsed = {
+      summary: 'Software engineer with C++ and C# experience.',
+      skills: ['C++', 'C#', 'Python', 'SQL'],
+      experience: [{ bullets: [
+        { id: 'b0', text: 'Built C++ services handling 10,000 requests per second' },
+        { id: 'b1', text: 'Wrote C# tools for internal reporting with SQL' },
+        { id: 'b2', text: 'Automated Python test suites for the build pipeline' },
+      ] }],
+    };
+    const skills = { critical: ['C++', 'C#', 'Python', 'Kubernetes'], secondary: ['SQL', 'Docker', 'Go'] };
+    expect(estimateScore(parsed, skills, new Map())).toBe(64);
+  });
+
+  it('counts .NET inside ASP.NET, like the backend', () => {
+    const parsed = { skills: ['ASP.NET'], experience: [{ bullets: [{ id: 'b', text: 'Built ASP.NET APIs' }] }] };
+    expect(estimateScore(parsed, { critical: ['.NET'], secondary: [] }, new Map())).toBe(100);
   });
 });
 
