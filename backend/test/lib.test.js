@@ -17,6 +17,7 @@ import { cleanText, isValidId, isValidEmail, passwordStrengthError, cleanFilenam
 import { friendlyAiError, readJsonOutput } from '../src/lib/aiClient.js';
 import { findUnsupportedClaims, validateOptions, hasPlaceholder } from '../src/lib/bulletEnhance.js';
 import { computeMatch } from '../src/lib/atsMatch.js';
+import { createInFlight } from '../src/lib/inFlight.js';
 
 const PDF = 'application/pdf';
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -273,6 +274,51 @@ describe('computeMatch', () => {
     const resume = { skills: ['JavaScript', 'Golang'], experience: [] };
     const result = computeMatch(resume, { requiredSkills: { critical: ['Java', 'Go'], secondary: [] } });
     assert.deepEqual(result.missingCritical, ['java', 'go']);
+  });
+});
+
+describe('createInFlight (duplicate submissions)', () => {
+  const deferred = () => {
+    let resolve;
+    let reject;
+    const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+  };
+
+  test('identical calls while the first is running share its result', async () => {
+    const shareInFlight = createInFlight();
+    const work = deferred();
+    let runs = 0;
+    const fn = () => { runs++; return work.promise; };
+    const calls = [1, 2, 3, 4, 5].map(() => shareInFlight('user:1:same text', fn));
+    work.resolve({ id: 7 });
+    const results = await Promise.all(calls);
+    assert.equal(runs, 1);
+    assert.ok(results.every((r) => r.id === 7));
+  });
+
+  test('different keys run separately', async () => {
+    const shareInFlight = createInFlight();
+    let runs = 0;
+    await Promise.all([shareInFlight('a', async () => runs++), shareInFlight('b', async () => runs++)]);
+    assert.equal(runs, 2);
+  });
+
+  test('once a call finishes, the next one runs again', async () => {
+    const shareInFlight = createInFlight();
+    let runs = 0;
+    await shareInFlight('a', async () => runs++);
+    await shareInFlight('a', async () => runs++);
+    assert.equal(runs, 2);
+  });
+
+  test('a failure is shared too, and does not block a later retry', async () => {
+    const shareInFlight = createInFlight();
+    const work = deferred();
+    const calls = [shareInFlight('a', () => work.promise), shareInFlight('a', () => work.promise)];
+    work.reject(new Error('AI busy'));
+    for (const call of calls) await assert.rejects(call, /AI busy/);
+    assert.equal(await shareInFlight('a', async () => 'retried'), 'retried');
   });
 });
 

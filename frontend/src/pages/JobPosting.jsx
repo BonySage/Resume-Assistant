@@ -6,7 +6,7 @@ import { Alert, Steps } from '../lib/ui.jsx';
 import { fileKind } from '../lib/format.js';
 import { api, listAllPages } from '../api.js';
 
-const MIN_TEXT = 80;
+const MIN_TEXT = 50; // same minimum as the server (backend/src/routes/jobPostings.js)
 
 function keywordCount(job) {
   return (job?.requiredSkills?.critical?.length || 0) + (job?.requiredSkills?.secondary?.length || 0);
@@ -27,6 +27,12 @@ export default function JobPosting() {
   const [busy, setBusy] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
   const abortRef = useRef(null);
+  // Set the moment a request starts, so extra clicks or Enter presses that land
+  // before React re-renders (and disables the button) are ignored (TESTING.md 3.4).
+  // extractingRef holds the running request's AbortController, so only that
+  // request (or Cancel) can release it.
+  const extractingRef = useRef(null);
+  const analyzingRef = useRef(false);
   const tabRefs = [useRef(null), useRef(null)];
   const textRef = useRef(null);
   const analyzeRef = useRef(null);
@@ -49,7 +55,8 @@ export default function JobPosting() {
   }, [status?.kind]);
 
   const resume = resumes?.find((r) => String(r.id) === String(resumeId));
-  const jobReady = tab === 0 ? !!job : text.trim().length >= MIN_TEXT;
+  // Any pasted text enables Analyze; a too-short one gets an error on click (TESTING.md 3.5).
+  const jobReady = tab === 0 ? !!job : text.trim().length > 0;
 
   const select = (i, focus) => {
     setTab(i);
@@ -76,9 +83,11 @@ export default function JobPosting() {
       document.getElementById('job-url').focus();
       return;
     }
+    if (extractingRef.current) return;
+    const ctrl = new AbortController();
+    extractingRef.current = ctrl;
     setUrlMsg('');
     setJob(null);
-    const ctrl = new AbortController();
     abortRef.current = ctrl;
     setStatus({ kind: 'reading' });
     try {
@@ -89,11 +98,19 @@ export default function JobPosting() {
     } catch (err) {
       if (err.name === 'AbortError') return;
       setStatus(err.fallbackToPaste ? { kind: 'blocked', message: err.message } : { kind: 'error', message: err.message });
+    } finally {
+      if (extractingRef.current === ctrl) extractingRef.current = null;
     }
   };
 
   const analyze = async () => {
-    if (!jobReady || !resume) return;
+    if (!jobReady || !resume || analyzingRef.current) return;
+    if (tab === 1 && text.trim().length < MIN_TEXT) {
+      setAnalyzeError(`That description looks too short to analyze. Paste at least ${MIN_TEXT} characters, ideally the full posting with its Requirements.`);
+      textRef.current?.focus();
+      return;
+    }
+    analyzingRef.current = true;
     setBusy(true);
     setAnalyzeError('');
     try {
@@ -108,6 +125,7 @@ export default function JobPosting() {
     } catch (err) {
       setAnalyzeError(err.message);
       setBusy(false);
+      analyzingRef.current = false; // on success the page navigates away, so it stays locked
     }
   };
 
@@ -164,7 +182,7 @@ export default function JobPosting() {
                         <strong>Reading job posting…</strong>Usually under 10 seconds.
                         <div className="progress" style={{ marginTop: 10 }}><span style={{ '--value': `${readPct}%` }} /></div>
                       </div>
-                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => { abortRef.current?.abort(); setStatus(null); document.getElementById('job-url').focus(); }}>
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => { abortRef.current?.abort(); extractingRef.current = null; setStatus(null); document.getElementById('job-url').focus(); }}>
                         Cancel
                       </button>
                     </div>

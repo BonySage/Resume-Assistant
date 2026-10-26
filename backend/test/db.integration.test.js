@@ -424,6 +424,122 @@ describe('database integration', { skip: ADMIN_URL ? false : 'set TEST_DATABASE_
     }
   });
 
+  // TESTING.md 3.4: spam-clicking "Analyze match" (or a second tab, or a script)
+  // must create one job posting, not one per request. A stand-in AI answers
+  // slowly so the requests overlap, as they do while a real posting is parsed.
+  describe('duplicate job-posting submissions (real server, stand-in AI)', () => {
+    let child;
+    let stub;
+    let base;
+    let aiCalls = 0;
+    const JOB = {
+      title: 'Backend Engineer', company: 'Globex', description: 'Build backend services.',
+      requiredSkills: ['C++', 'Python'], secondarySkills: ['SQL'], responsibilities: ['Build services'],
+    };
+    const post = (cookie, text) => fetch(`${base}/api/job-postings`, {
+      method: 'POST',
+      headers: { Origin: ORIGIN, Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const jobCount = async (userId) =>
+      Number((await admin.query('SELECT COUNT(*) FROM job_postings WHERE user_id = $1', [userId])).rows[0].count);
+
+    before(async () => {
+      const http = await import('node:http');
+      const { spawn } = await import('node:child_process');
+      stub = http.createServer((req, res) => {
+        req.resume();
+        req.on('end', () => {
+          aiCalls++;
+          setTimeout(() => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              id: 'msg_test', type: 'message', role: 'assistant', model: 'test',
+              content: [{ type: 'text', text: JSON.stringify(JOB) }],
+              stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 },
+            }));
+          }, 300);
+        });
+      });
+      await new Promise((resolve) => stub.listen(0, '127.0.0.1', resolve));
+      const port = await new Promise((resolve) => {
+        const s = http.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); });
+      });
+      base = `http://127.0.0.1:${port}`;
+      child = spawn(process.execPath, ['src/index.js'], {
+        cwd: path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
+        env: {
+          PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
+          NODE_ENV: 'development', PORT: String(port), DATABASE_URL: appDbUrlForChild,
+          JWT_SECRET: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
+          CLIENT_ORIGIN: ORIGIN,
+          ANTHROPIC_API_KEY: 'sk-test-stand-in', ANTHROPIC_BASE_URL: `http://127.0.0.1:${stub.address().port}`,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('server did not start')), 15_000);
+        child.stdout.on('data', (d) => { if (String(d).includes('listening')) { clearTimeout(timer); resolve(); } });
+        child.on('exit', (code) => { clearTimeout(timer); reject(new Error(`server exited (${code})`)); });
+      });
+    });
+    after(() => {
+      child?.kill();
+      stub?.close();
+    });
+
+    async function newUser(email) {
+      const res = await fetch(`${base}/api/auth/signup`, {
+        method: 'POST',
+        headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: PASSWORD }),
+      });
+      assert.equal(res.status, 201);
+      return { id: (await res.json()).user.id, cookie: res.headers.get('set-cookie').split(';')[0] };
+    }
+
+    test('5 identical submissions at once create one job posting and one AI call', async () => {
+      const user = await newUser('spam-click@example.com');
+      const text = 'Backend Engineer at Globex. Requirements: C++ and Python. Nice to have: SQL. Build backend services.';
+      aiCalls = 0;
+      const responses = await Promise.all([1, 2, 3, 4, 5].map(() => post(user.cookie, text)));
+      const bodies = await Promise.all(responses.map((r) => r.json()));
+      assert.deepEqual(responses.map((r) => r.status), [201, 201, 201, 201, 201]);
+      assert.equal(new Set(bodies.map((b) => b.jobPosting.id)).size, 1, 'every click gets the same posting');
+      assert.equal(await jobCount(user.id), 1);
+      assert.equal(aiCalls, 1);
+    });
+
+    test('the same description with different spacing or line endings counts as a duplicate', async () => {
+      const user = await newUser('same-text-spacing@example.com');
+      const text = 'Backend Engineer at Globex.\nRequirements: C++ and Python.\nNice to have: SQL. Build backend services.';
+      aiCalls = 0;
+      await Promise.all([post(user.cookie, text), post(user.cookie, `  ${text.replace(/\n/g, '\r\n')}\n\n `)]);
+      assert.equal(await jobCount(user.id), 1);
+      assert.equal(aiCalls, 1);
+    });
+
+    test('different descriptions, or a later resubmission, still create their own postings', async () => {
+      const user = await newUser('two-jobs@example.com');
+      const textA = 'Backend Engineer at Globex. Requirements: C++ and Python. Nice to have: SQL. Build services.';
+      const textB = 'Data Engineer at Initech. Requirements: Python and SQL. Nice to have: Airflow. Build pipelines.';
+      await Promise.all([post(user.cookie, textA), post(user.cookie, textB)]);
+      assert.equal(await jobCount(user.id), 2);
+      await post(user.cookie, textA); // the first one has finished, so this is a new request
+      assert.equal(await jobCount(user.id), 3);
+    });
+
+    test('two users submitting the same text each get their own posting', async () => {
+      const userA = await newUser('same-text-a@example.com');
+      const userB = await newUser('same-text-b@example.com');
+      const text = 'Backend Engineer at Globex. Requirements: C++ and Python. Nice to have: SQL. Build services today.';
+      const [a, b] = await Promise.all([post(userA.cookie, text), post(userB.cookie, text)]);
+      assert.notEqual((await a.json()).jobPosting.id, (await b.json()).jobPosting.id);
+      assert.equal(await jobCount(userA.id), 1);
+      assert.equal(await jobCount(userB.id), 1);
+    });
+  });
+
   // Cross-site request forgery: another website making a logged-in user's
   // browser send a request to the API. Defenses: every POST/DELETE must carry
   // the app's own Origin (app.js requireTrustedOrigin), the session cookie is
