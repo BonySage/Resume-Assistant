@@ -9,10 +9,29 @@ on:
   push:
     branches: [main]
 
+# CI only reads the code; never give its token write access.
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Backend tests
     runs-on: ubuntu-latest
+    # Throwaway Postgres for test/db.integration.test.js (migrations + RLS).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,6 +46,10 @@ jobs:
       - name: Install dependencies
         working-directory: backend
         run: npm ci
+
+      - name: Check for vulnerable dependencies
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Run tests
         working-directory: backend
@@ -49,6 +72,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Check for vulnerable dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
 
       - name: Run tests
         working-directory: frontend

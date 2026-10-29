@@ -4,6 +4,8 @@ import { config } from '../config.js';
 import { unauthorized } from '../errors.js';
 
 const JWT_SECRET = config.jwtSecret;
+// Pinned, so a token can't choose its own algorithm (e.g. HS512 or "none").
+const JWT_ALGORITHM = 'HS256';
 
 // FR-1.2: session timeout after 15 minutes of inactivity. Implemented as a
 // sliding JWT expiry — every authenticated request re-issues the cookie with
@@ -13,7 +15,7 @@ const SESSION_TTL = '15m';
 const SESSION_TTL_MS = 15 * 60 * 1000;
 
 export function signToken(user) {
-  return jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: SESSION_TTL });
+  return jwt.sign({ sub: user.id }, JWT_SECRET, { algorithm: JWT_ALGORITHM, expiresIn: SESSION_TTL });
 }
 
 export const COOKIE_OPTIONS = {
@@ -23,13 +25,26 @@ export const COOKIE_OPTIONS = {
   maxAge: SESSION_TTL_MS,
 };
 
+// The user id from a validly signed, unexpired session cookie, or null. No
+// database lookup: used by the global rate limiter to count logged-in
+// requests per user instead of per IP (a forged token gets no allowance).
+export function sessionUserId(req) {
+  const token = req.cookies?.token;
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] }).sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Guards a router or route: sets req.user = { id, email } or responds 401.
 export async function requireAuth(req, res, next) {
   const token = req.cookies?.token;
   if (!token) throw unauthorized();
   let payload;
   try {
-    payload = jwt.verify(token, JWT_SECRET);
+    payload = jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
       throw unauthorized('Your session expired after 15 minutes of inactivity. Please log in again.', { code: 'SESSION_EXPIRED' });

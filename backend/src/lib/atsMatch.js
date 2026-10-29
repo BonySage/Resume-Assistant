@@ -7,7 +7,12 @@ function normalizeKeyword(k) {
 
 function countOccurrences(haystack, keyword) {
   const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`\\b${escaped}\\b`, 'gi');
+  // Whole words only. Like \b, a boundary is required only where the keyword
+  // edge is a word character: \b alone fails next to symbols ("C++", "C#"),
+  // and ".NET" must still match inside "ASP.NET".
+  const start = /^\w/.test(keyword) ? '(?<!\\w)' : '';
+  const end = /\w$/.test(keyword) ? '(?!\\w)' : '';
+  const re = new RegExp(`${start}${escaped}${end}`, 'gi');
   return (haystack.match(re) || []).length;
 }
 
@@ -74,13 +79,16 @@ export function computeMatch(resume, job) {
   if (weak.length) {
     recommendations.push(`These keywords appear only once — mention them again in context to strengthen the match: ${weak.slice(0, 5).join(', ')}.`);
   }
-  if (score !== null && score < 60) {
+  // Same scale as the results page: Low 0–49, Fair 50–74, Strong 75+.
+  if (score !== null && score < 50) {
     recommendations.push('Your overall match is low. Consider whether this role is a strong fit, or tailor your bullets toward the missing critical keywords above.');
   }
   if (score === null) {
     recommendations.push('No job skills were listed, so a keyword match score could not be calculated. Review the posting details manually.');
   } else if (!recommendations.length) {
-    recommendations.push('Strong match — no major keyword gaps found.');
+    recommendations.push(score >= 75
+      ? 'Strong match — no major keyword gaps found.'
+      : `Every required keyword is covered. To raise the score, add these nice-to-have keywords if they reflect real experience: ${missingSecondary.slice(0, 5).join(', ')}.`);
   }
 
   return {

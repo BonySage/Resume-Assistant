@@ -41,8 +41,8 @@ cd Resume-Assistant
 # Build the frontend for production
 npm run build
 
-# 1. Backend secrets
-cp backend/.env.example backend/.env   # set JWT_SECRET and ANTHROPIC_API_KEY
+# 1. Secrets for Docker Compose (root .env, not backend/.env)
+cp compose.env.example .env            # set POSTGRES_ADMIN_PASSWORD, APP_DB_PASSWORD, JWT_SECRET, ANTHROPIC_API_KEY
 
 # 2. Docker creates the single database and applies migrations automatically
 docker compose up -d --build           # API on http://localhost:3000
@@ -67,7 +67,7 @@ For Docker, set values in the root `.env` (see [compose.env.example](compose.env
 
 | Variable | Purpose |
 |---|---|
-| `JWT_SECRET` | Signs login tokens. Use a long random string. |
+| `JWT_SECRET` | **Required.** Signs login tokens. Use a long random string, e.g. `openssl rand -hex 32`. The API won't start without one, or with a template value. Never put it in frontend settings. |
 | `ANTHROPIC_API_KEY` | Turns on job parsing and bullet rewrites. |
 | `ANTHROPIC_MODEL` | Claude model for bullet rewrites (default `claude-sonnet-5`). |
 | `ANTHROPIC_PARSE_MODEL` | Faster model for resume and job-posting parsing (default `claude-haiku-5-5`). |
@@ -75,7 +75,7 @@ For Docker, set values in the root `.env` (see [compose.env.example](compose.env
 | `MIGRATION_DATABASE_URL` | Privileged Postgres connection used only for migrations and provisioning the runtime DB role. |
 | `APP_DB_PASSWORD` | Password for the restricted `resume_app` runtime role. |
 | `CLIENT_ORIGIN` | Frontend URL allowed by CORS. |
-| `TRUST_PROXY` | Set only behind a trusted proxy; configures forwarded IP/protocol handling. |
+| `TRUST_PROXY` | Set when the API runs behind a proxy or load balancer (e.g. `1` for one hop). Without it, every user shares the proxy's IP for rate limiting, so one attacker can lock everyone out of login. Leave `false` when clients connect directly. |
 | `PORT` | API port (default `3000`). |
 
 The frontend reads `VITE_API_BASE_URL` (see [frontend/.env.example](frontend/.env.example)). You don't need it for local dev because Vite proxies `/api`.
@@ -94,7 +94,7 @@ The API uses the restricted `resume_app` database role for normal requests; the 
 
 ### Running the backend without Docker
 
-You need a Postgres instance and `DATABASE_URL` set in `backend/.env`:
+You need a Postgres instance and `DATABASE_URL` set in `backend/.env`. Replace the example `JWT_SECRET` with a long random string (e.g. `openssl rand -hex 32`); the API refuses to start without one or with the template value:
 
 ```bash
 cd backend

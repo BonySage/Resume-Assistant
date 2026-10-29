@@ -24,8 +24,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Secrets (JWT_SECRET, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_PARSE_MODEL) come from backend/.env.
-    # It's optional so the stack still starts without it (AI features stay off).
+    # Secrets come from the root .env (see compose.env.example) via `environment:` below,
+    # which overrides backend/.env. backend/.env is optional (e.g. ANTHROPIC_PARSE_MODEL).
     env_file:
       - path: backend/.env
         required: false

@@ -1,9 +1,10 @@
 // Client-side copy of backend/src/lib/atsMatch.js scoring, used only to
 // *estimate* the score after the user's saved bullet edits (Export screen).
 // Keep the weights in sync with the backend.
+import { keywordPattern } from './format.js';
+
 function countOccurrences(haystack, keyword) {
-  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return (haystack.match(new RegExp(`\\b${escaped}\\b`, 'gi')) || []).length;
+  return (haystack.match(new RegExp(keywordPattern(keyword), 'gi')) || []).length;
 }
 
 function surfaceText(parsed, overrides) {

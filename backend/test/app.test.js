@@ -13,7 +13,7 @@ const { createApp } = await import('../src/app.js');
 const { pool } = await import('../src/db.js');
 const { errorHandler } = await import('../src/middleware/errorHandler.js');
 const { HttpError, notFound } = await import('../src/errors.js');
-const { checkConfig } = await import('../src/config.js');
+const { checkConfig, removeSecretsFromEnv } = await import('../src/config.js');
 
 // Start an app on a random port and return a fetch helper for it.
 async function serve(app) {
@@ -40,6 +40,19 @@ describe('API app', () => {
     const { status, body } = await api.call('/api/health');
     assert.equal(status, 503);
     assert.deepEqual({ ok: body.ok, db: body.db }, { ok: false, db: 'down' });
+  });
+
+  // XSS: text a user controls (here, the URL) is echoed back only as JSON,
+  // which browsers never run, and a strict CSP means nothing could run even if
+  // an API response were ever rendered as a page.
+  test('a script in the URL comes back as inert JSON with no-script headers', async () => {
+    const { status, body, headers } = await api.call('/api/%3Cscript%3Ealert(1)%3C%2Fscript%3E');
+    assert.equal(status, 404);
+    assert.match(headers.get('content-type'), /^application\/json/);
+    assert.equal(typeof body, 'object');
+    assert.equal(headers.get('x-content-type-options'), 'nosniff');
+    assert.match(headers.get('content-security-policy') || '', /default-src 'none'/);
+    assert.match(headers.get('content-security-policy') || '', /frame-ancestors 'none'/);
   });
 
   test('unknown API routes return a JSON 404', async () => {
@@ -90,6 +103,46 @@ describe('API app', () => {
     assert.equal(body.code, 'SESSION_EXPIRED');
   });
 
+  // Forged or tampered sessions must be rejected before anything else runs.
+  // This suite has no database, so a token that got past the signature check
+  // would show up as a 500 (the user lookup failing) instead of a 401.
+  describe('JWT session tokens', () => {
+    const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+    const asSession = (token) => api.call('/api/resumes', { headers: { Cookie: `token=${token}` } });
+    const rejected = async (token, label) => {
+      const { status, body } = await asSession(token);
+      assert.equal(status, 401, `${label}: got ${status}`);
+      assert.equal(body.code, 'NO_SESSION', label);
+    };
+
+    test('a token signed with a different secret is rejected', async () => {
+      await rejected(jwt.sign({ sub: 1 }, 'some-other-secret', { expiresIn: '5m' }), 'wrong secret');
+    });
+
+    test('a token signed with the old public dev secret is rejected', async () => {
+      await rejected(jwt.sign({ sub: 1 }, 'dev-only-insecure-secret-change-me', { expiresIn: '5m' }), 'public dev secret');
+    });
+
+    test('an unsigned token (alg "none") is rejected', async () => {
+      await rejected(`${b64({ alg: 'none', typ: 'JWT' })}.${b64({ sub: 1, exp: Math.floor(Date.now() / 1000) + 300 })}.`, 'alg none');
+    });
+
+    test('only HS256 is accepted, even with the right secret', async () => {
+      for (const algorithm of ['HS384', 'HS512']) {
+        await rejected(jwt.sign({ sub: 1 }, 'test-secret', { algorithm, expiresIn: '5m' }), algorithm);
+      }
+    });
+
+    test('a token whose payload was edited (another user id) is rejected', async () => {
+      const [header, , signature] = jwt.sign({ sub: 1 }, 'test-secret', { expiresIn: '5m' }).split('.');
+      await rejected(`${header}.${b64({ sub: 2, exp: Math.floor(Date.now() / 1000) + 300 })}.${signature}`, 'tampered');
+    });
+
+    test('garbage tokens are rejected', async () => {
+      for (const token of ['', 'abc', 'a.b.c', '%00']) await rejected(token, JSON.stringify(token));
+    });
+  });
+
   test('a database outage behind auth is a 500, not a crash or a fake logout', async () => {
     const token = jwt.sign({ sub: 1 }, 'test-secret', { expiresIn: '5m' });
     const { status, body } = await api.call('/api/resumes', { headers: { Cookie: `token=${token}` } });
@@ -122,6 +175,51 @@ describe('API app', () => {
       await limited.close();
     }
   });
+
+  // Many people can share one IP (campus Wi-Fi). Logged-in requests count
+  // against the user, so one person can't use up everyone's allowance.
+  test('when logged in, the global limit counts per user, not per IP', async () => {
+    const limited = await serve(createApp());
+    const as = (token) => limited.call('/api/rate-limit-check', token ? { headers: { Cookie: `token=${token}` } } : undefined);
+    const token = (sub, secret = 'test-secret') => jwt.sign({ sub }, secret, { expiresIn: '5m' });
+    try {
+      // Use up this IP's anonymous allowance (an earlier test may already have).
+      for (let i = 0; i < 125 && (await as()).status !== 429; i++);
+      assert.equal((await as()).status, 429, 'anonymous requests: the IP allowance is used up');
+
+      let allowed = 0;
+      while (allowed < 125 && (await as(token(101))).status !== 429) allowed++;
+      assert.equal(allowed, 120, 'a logged-in user gets their own 120 per minute');
+      assert.notEqual((await as(token(102))).status, 429, 'another user on the same IP is unaffected');
+      assert.equal((await as(token(103, 'wrong-secret'))).status, 429, 'a forged token gets no fresh allowance');
+    } finally {
+      await limited.close();
+    }
+  });
+
+  // Per-user counting must not let one machine multiply its allowance by
+  // holding many accounts: every IP also has a ceiling of 600 requests/minute.
+  test('many accounts from one IP still hit a per-IP ceiling', async () => {
+    const limited = await serve(createApp());
+    try {
+      let total = 0;
+      let blocked = null;
+      for (let user = 301; user < 320 && !blocked; user++) {
+        const token = jwt.sign({ sub: user }, 'test-secret', { expiresIn: '5m' });
+        for (let sent = 0; sent < 110; sent++) {
+          const res = await limited.call('/api/rate-limit-check', { headers: { Cookie: `token=${token}` } });
+          if (res.status === 429) { blocked = { sent, body: res.body }; break; }
+          total++;
+        }
+      }
+      assert.ok(blocked, `never limited after ${total} requests from ${19} accounts`);
+      assert.ok(blocked.sent < 110, 'blocked before that account used its own 120');
+      assert.ok(total <= 600, `allowed ${total} in total`);
+      assert.equal(blocked.body.code, 'RATE_LIMITED');
+    } finally {
+      await limited.close();
+    }
+  });
 });
 
 describe('error handler', () => {
@@ -148,7 +246,7 @@ describe('error handler', () => {
 });
 
 describe('config', () => {
-  const base = { databaseUrl: 'postgres://x', jwtSecret: 'dev-only-insecure-secret-change-me', appDbPassword: 'a-real-database-password-with-32-chars', anthropicApiKey: 'k', isProduction: false, clientOrigins: ['https://app.example'] };
+  const base = { databaseUrl: 'postgres://x', jwtSecret: 'f3a9c1d7e2b84a6f9c0d1e2f3a4b5c6d', appDbPassword: 'a-real-database-password-with-32-chars', anthropicApiKey: 'k', isProduction: false, clientOrigins: ['https://app.example'] };
 
   test('production refuses to start without a real JWT secret', () => {
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: '' }).errors.length, 1);
@@ -158,15 +256,202 @@ describe('config', () => {
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32' }).errors.length, 0);
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: 'replace-with-sample-password-at-least-32' }).errors.length, 1);
     assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: '' }).errors.length, 1);
+    // APP_DB_PASSWORD uses the same placeholder list as JWT_SECRET.
+    assert.equal(checkConfig({ ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32', appDbPassword: 'your-key-here-but-made-long-enough-32' }).errors.length, 1);
   });
 
-  test('development only warns about the dev secret and a missing AI key', () => {
+  test('development only warns about a missing AI key', () => {
     const { errors, warnings } = checkConfig({ ...base, anthropicApiKey: '' });
     assert.equal(errors.length, 0);
-    assert.equal(warnings.length, 2);
+    assert.equal(warnings.length, 1);
+  });
+
+  // The old fallback secret is written in the repo, so a server started
+  // without JWT_SECRET (e.g. NODE_ENV not set to "production") let anyone
+  // forge a session. Every mode except tests now needs a real secret.
+  test('no mode except tests starts without its own JWT secret', () => {
+    for (const isProduction of [false, true]) {
+      for (const jwtSecret of ['', undefined, 'dev-only-insecure-secret-change-me']) {
+        const { errors } = checkConfig({ ...base, isProduction, jwtSecret });
+        assert.equal(errors.length, 1, `${isProduction ? 'production' : 'development'} with ${JSON.stringify(jwtSecret)}`);
+        assert.match(errors[0], /JWT_SECRET/);
+      }
+    }
+  });
+
+  test('outside tests, config has no built-in JWT secret to fall back on', async () => {
+    const { execFile } = await import('node:child_process');
+    const run = (env) => new Promise((resolve) => {
+      execFile(process.execPath, ['--input-type=module', '-e', "const { config } = await import('./src/config.js'); console.log(JSON.stringify(config.jwtSecret))"],
+        { cwd: new URL('..', import.meta.url), env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, ...env } }, (err, stdout) => resolve(stdout.trim()));
+    });
+    assert.equal(await run({ NODE_ENV: 'development' }), '""');
+    assert.equal(await run({}), '""', 'NODE_ENV not set');
+    assert.equal(await run({ NODE_ENV: 'staging' }), '""');
+    assert.equal(await run({ NODE_ENV: 'development', JWT_SECRET: 'my-own-long-random-secret-value-123' }), '"my-own-long-random-secret-value-123"');
+  });
+
+  // Secrets are copied into config at startup; leaving them in process.env
+  // lets any library, crash reporter or child process read them.
+  test('secrets can be removed from process.env once config has them', () => {
+    const saved = { ...process.env };
+    try {
+      Object.assign(process.env, { JWT_SECRET: 's1', ANTHROPIC_API_KEY: 's2', MIGRATION_DATABASE_URL: 's3', APP_DB_PASSWORD: 's4', DATABASE_URL: 's5', PORT: '1234' });
+      removeSecretsFromEnv();
+      for (const k of ['JWT_SECRET', 'ANTHROPIC_API_KEY', 'MIGRATION_DATABASE_URL', 'APP_DB_PASSWORD', 'DATABASE_URL']) {
+        assert.equal(process.env[k], undefined, k);
+      }
+      assert.equal(process.env.PORT, '1234', 'non-secret settings stay');
+    } finally {
+      for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+      Object.assign(process.env, saved);
+    }
+  });
+
+  // Audit #1: the JWT secret signs every session; a value copied from a
+  // public template lets anyone forge a login for any user id.
+  test('development refuses a JWT secret copied from the example env files', () => {
+    for (const jwtSecret of [
+      'change-me-to-a-unique-random-secret-at-least-32-characters', // compose.env.example
+      'change-me-to-a-long-random-string', // backend/.env.example
+      'your-key-here',
+      'secret',
+    ]) {
+      assert.equal(checkConfig({ ...base, jwtSecret }).errors.length, 1, jwtSecret);
+    }
+  });
+
+  test('development warns (but still starts) with a short JWT secret', () => {
+    const { errors, warnings } = checkConfig({ ...base, jwtSecret: 'my-own-short-secret' });
+    assert.equal(errors.length, 0);
+    assert.ok(warnings.some((w) => /JWT_SECRET/.test(w)));
+  });
+
+  test('development accepts a long random JWT secret without warnings', () => {
+    const { errors, warnings } = checkConfig({ ...base, jwtSecret: 'f3a9c1d7e2b84a6f9c0d1e2f3a4b5c6d' });
+    assert.equal(errors.length, 0);
+    assert.equal(warnings.length, 0);
+  });
+
+  // Audit #4: behind a proxy without TRUST_PROXY every user shares the
+  // proxy's IP, so one attacker exhausts the login limit for everyone.
+  test('production warns when TRUST_PROXY is not set', () => {
+    const prod = { ...base, isProduction: true, jwtSecret: 'a-real-secret-that-is-long-enough-32' };
+    assert.ok(checkConfig({ ...prod, trustProxy: false }).warnings.some((w) => /TRUST_PROXY/.test(w)));
+    assert.ok(!checkConfig({ ...prod, trustProxy: 1 }).warnings.some((w) => /TRUST_PROXY/.test(w)));
+    assert.ok(!checkConfig({ ...base, trustProxy: false }).warnings.some((w) => /TRUST_PROXY/.test(w)), 'not in development');
   });
 
   test('a missing DATABASE_URL is an error', () => {
     assert.equal(checkConfig({ ...base, databaseUrl: undefined }).errors.length, 1);
+  });
+});
+
+// Audit #4: the IP-based login limit doesn't stop guessing spread over many
+// IPs, so failed logins are also limited per email address. Limiters are off
+// in tests, so this runs the factory directly with limiting switched on.
+describe('per-email login limit', () => {
+  let api;
+  before(async () => {
+    const { loginEmailRateLimit } = await import('../src/routes/auth.js');
+    const app = express();
+    app.set('trust proxy', true); // let each request pick its IP via X-Forwarded-For
+    app.use(express.json());
+    app.post('/login', loginEmailRateLimit({ limit: 3, skip: () => false }), (req, res) => {
+      if (req.body.password === 'right') return res.json({ ok: true });
+      res.status(401).json({ error: 'Invalid email or password.' });
+    });
+    api = await serve(app);
+  });
+  after(() => api.close());
+
+  let ip = 0;
+  const login = (email, password) => api.call('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `203.0.113.${++ip}` }, // a new IP every time
+    body: JSON.stringify({ email, password }),
+  });
+
+  test('blocks an email after too many failed attempts, even from different IPs', async () => {
+    for (let i = 0; i < 3; i++) assert.equal((await login('victim@example.com', 'guess')).status, 401);
+    const blocked = await login('victim@example.com', 'guess');
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.body.code, 'RATE_LIMITED');
+  });
+
+  test('the limit is per email and ignores letter case', async () => {
+    assert.equal((await login('VICTIM@example.com', 'guess')).status, 429);
+    assert.equal((await login('someone-else@example.com', 'guess')).status, 401);
+  });
+
+  // Arbitrary strings (e.g. 1 MB) must not become keys in the in-memory store.
+  test('values that are not real emails are counted against the IP instead', async () => {
+    const fromOneIp = (email) => api.call('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '198.51.100.7' },
+      body: JSON.stringify({ email, password: 'guess' }),
+    });
+    for (const junk of ['junk-1', 'x'.repeat(5000), 'junk-3']) assert.equal((await fromOneIp(junk)).status, 401);
+    assert.equal((await fromOneIp('junk-4')).status, 429, 'all junk values share the IP bucket');
+  });
+
+  test('successful logins do not count toward the limit', async () => {
+    for (let i = 0; i < 5; i++) assert.equal((await login('regular@example.com', 'right')).status, 200);
+    assert.equal((await login('regular@example.com', 'guess')).status, 401);
+  });
+});
+
+// Everyone behind one shared IP (campus Wi-Fi, an office, a proxy) used to
+// share 10 sign-in/sign-up requests per 15 minutes, successful ones included,
+// so the 11th person to log in was locked out. Login now only counts failures
+// per IP; sign-up still counts every attempt (no bulk account creation), and
+// the two no longer share a counter.
+describe('per-IP login and sign-up limits', () => {
+  // A fresh app per test, so each starts with empty counters. Same IP for all requests.
+  async function makeApp() {
+    const { loginIpRateLimit, signupIpRateLimit } = await import('../src/routes/auth.js');
+    const app = express();
+    app.use(express.json());
+    const on = { limit: 3, skip: () => false };
+    app.post('/signup', signupIpRateLimit(on), (req, res) => res.status(201).json({ ok: true }));
+    app.post('/login', loginIpRateLimit(on), (req, res) =>
+      req.body.password === 'right' ? res.json({ ok: true }) : res.status(401).json({ error: 'Invalid email or password.' }));
+    return serve(app);
+  }
+  const post = (api, path, body) => api.call(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  test('successful logins from one IP are never blocked', async () => {
+    const api = await makeApp();
+    for (let i = 0; i < 8; i++) {
+      assert.equal((await post(api, '/login', { email: `student${i}@example.com`, password: 'right' })).status, 200, `login ${i + 1}`);
+    }
+    await api.close();
+  });
+
+  test('failed logins from one IP are still blocked after the limit', async () => {
+    const api = await makeApp();
+    for (let i = 0; i < 3; i++) assert.equal((await post(api, '/login', { email: `x${i}@example.com`, password: 'guess' })).status, 401);
+    const blocked = await post(api, '/login', { email: 'x9@example.com', password: 'guess' });
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.body.code, 'RATE_LIMITED');
+    await api.close();
+  });
+
+  test('sign-ups still count every attempt, so accounts cannot be created in bulk', async () => {
+    const api = await makeApp();
+    for (let i = 0; i < 3; i++) assert.equal((await post(api, '/signup', { email: `new${i}@example.com` })).status, 201);
+    assert.equal((await post(api, '/signup', { email: 'new9@example.com' })).status, 429);
+    await api.close();
+  });
+
+  test('sign-ups and logins have separate counters', async () => {
+    const api = await makeApp();
+    for (let i = 0; i < 4; i++) await post(api, '/signup', { email: `new${i}@example.com` }); // uses up sign-ups
+    assert.equal((await post(api, '/login', { email: 'student@example.com', password: 'right' })).status, 200);
+    await api.close();
   });
 });

@@ -13,6 +13,19 @@ export function cleanText(input) {
   return input.replace(/\r\n?/g, '\n').replace(CONTROL_CHARS_RE, '').trim();
 }
 
+// A browser-supplied file name, made safe to store and show: no control
+// characters or line breaks, at most 255 characters.
+export function cleanFilename(name) {
+  // The cut can land inside an emoji's surrogate pair; drop the dangling half.
+  return cleanText(name).replace(/[\t\n\r]+/g, ' ').trim().slice(0, 255).replace(/[\uD800-\uDBFF]$/, '') || 'resume';
+}
+
+// Table ids are SERIAL: positive integers up to Postgres's INTEGER max.
+const MAX_DB_ID = 2_147_483_647;
+export function isValidId(value) {
+  return typeof value === 'string' && /^[1-9]\d{0,9}$/.test(value) && Number(value) <= MAX_DB_ID;
+}
+
 export function isValidEmail(email) {
   return typeof email === 'string' && EMAIL_RE.test(email);
 }
@@ -27,6 +40,10 @@ export function passwordStrengthError(password) {
   }
   if (!/[0-9]/.test(password)) {
     return 'Password must include at least one number.';
+  }
+  // bcrypt only uses the first 72 bytes; anything longer would be silently cut off.
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    return 'Password is too long. Use at most 72 characters (fewer if it has accents or emoji).';
   }
   return null;
 }

@@ -1,22 +1,17 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireValidId } from '../middleware/idParam.js';
+import { userRateLimit } from '../middleware/userRateLimit.js';
 import { computeMatch } from '../lib/atsMatch.js';
 import { generateBulletOptions, validateOptions, findUnsupportedClaims, hasPlaceholder } from '../lib/bulletEnhance.js';
-import { cleanText } from '../lib/validators.js';
+import { cleanText, isValidId } from '../lib/validators.js';
 import { renderResumePdf } from '../lib/generatePdf.js';
-import { rateLimit } from 'express-rate-limit';
 
 const router = Router();
 router.use(requireAuth);
-const aiRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 5,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === 'test',
-  message: { error: 'Too many AI requests. Try again in 15 minutes.', code: 'RATE_LIMITED' },
-});
+router.param('id', requireValidId('Analysis not found.'));
+const aiRateLimit = userRateLimit({ limit: 5, message: 'Too many AI requests. Try again in 15 minutes.' });
 
 const MAX_BULLET_LENGTH = 300; // matches the editor's limit on the improve page
 
@@ -94,6 +89,11 @@ router.get('/:id', async (req, res) => {
 // FR-4.1 / FR-4.2: run the resume-to-job match.
 router.post('/', async (req, res) => {
   const { resumeId, jobPostingId } = req.body || {};
+  // Ids may arrive as numbers or strings; anything else can't exist (and would make Postgres throw).
+  // String() alone isn't enough: String(['1']) is '1', but pg sends an array as '{"1"}'.
+  const validBodyId = (v) => (typeof v === 'number' || typeof v === 'string') && isValidId(String(v));
+  if (!validBodyId(resumeId)) return res.status(404).json({ error: 'Resume not found.' });
+  if (!validBodyId(jobPostingId)) return res.status(404).json({ error: 'Job posting not found.' });
   const resume = await ownedResume(resumeId, req.user.id);
   if (!resume) return res.status(404).json({ error: 'Resume not found.' });
   const jobPosting = await ownedJobPosting(jobPostingId, req.user.id);

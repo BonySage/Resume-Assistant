@@ -1,5 +1,5 @@
 // Server entry point: validate config, start listening, shut down cleanly.
-import { config, checkConfig } from './config.js';
+import { config, checkConfig, removeSecretsFromEnv } from './config.js';
 import { createApp } from './app.js';
 import { pool } from './db.js';
 
@@ -13,8 +13,8 @@ if (errors.length) {
 // Migration/admin credentials are not needed by the request-serving process.
 delete config.migrationDatabaseUrl;
 delete config.appDbPassword;
-delete process.env.MIGRATION_DATABASE_URL;
-delete process.env.APP_DB_PASSWORD;
+// All secrets now live in `config`; take them out of the environment.
+removeSecretsFromEnv();
 
 const server = createApp().listen(config.port, () => {
   console.log(`AI Resume Assistant API listening on http://localhost:${config.port} (${config.env})`);
