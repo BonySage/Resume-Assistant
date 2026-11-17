@@ -4,6 +4,16 @@
 
 A web app that helps job seekers tailor a resume to a specific job posting. It scores how well the resume matches the job (ATS-style), shows which keywords are matched, missing or weak, and uses AI to suggest stronger resume bullets that stay truthful to what the resume already says.
 
+## What is an ATS scanner?
+
+An **Applicant Tracking System (ATS)** is software companies use to collect, sort and filter job applications. Before a recruiter ever reads a resume, the ATS parses it into plain text and compares it against the job posting, looking for matching keywords, skills, job titles and qualifications. Resumes that score low may never reach a human. This app simulates that scan so you can see your match score and close the gaps before you apply.
+
+## Results: Serene Plummer
+
+**Serene Plummer** is a Computer Science student at the University of North Texas (graduating December 2027) focused on AI agents, cloud and full-stack development, and the backend developer on this project.
+
+> "Since learning about ATS in my sophomore year of college, I've never gone back. Not only did it give me a template of what skills I needed to improve on, but it opened the door to opportunities, projects and multiple internship offers from my dream companies." — **Serene Plummer**
+
 ## Features
 
 - **Accounts:** sign up and log in with email and password. Sessions time out after 15 minutes of inactivity.
